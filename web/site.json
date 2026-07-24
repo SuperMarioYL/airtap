@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "name": "airtap",
+  "github": "https://github.com/SuperMarioYL/airtap",
+  "host": "airtap.lei6393.com",
+  "lang": { "primary": "zh", "toggle": true },
+  "accent": ["#3fb950", "#1a7f37"],
+  "hero": {
+    "eyebrow": { "zh": "本地 · 零出口 · 可审计", "en": "On-prem · Zero egress · Auditable" },
+    "headline": { "zh": "一条命令\n在内网 GPU 盒上跑编码 Agent", "en": "Run a coding agent\non your in-network GPU box" },
+    "sub": { "zh": "数据不出境的国企研发，第一次像用云端 runner 一样顺手——每一次外发请求都留痕可审。", "en": "On-prem R&D that finally feels like a cloud runner — every outbound request is logged and audit-ready." },
+    "command": "airtap run \"给 server.go 加 /health 接口\"",
+    "cta": { "zh": "查看 GitHub", "en": "See on GitHub" },
+    "ctaGithub": { "zh": "源码 / README", "en": "Source / README" }
+  },
+  "advantages": [
+    {
+      "title": { "zh": "一条命令，告别隧道拼装", "en": "One command, no more tunnel juggling" },
+      "body": { "zh": "以前在内网 GPU 盒上跑 agent，要手动拼 SSH、tmux、端口转发。Airtap 一条命令就连上、跑起来、流回你的终端。", "en": "Running an agent on an in-network GPU box used to mean hand-wiring SSH, tmux, and port-forwarding. Airtap connects, runs, and streams back to your terminal in one command." },
+      "chips": ["› airtap init 生成证书", "› 30 秒连上"]
+    },
+    {
+      "title": { "zh": "出口只放行白名单，其余一律拒绝", "en": "Egress allowlist — everything else denied" },
+      "body": { "zh": "守护进程拦下每一次外发请求，只放行白名单里的目标，每一次放行与拒绝都写进审计日志。默认只允许调到本地模型端点。", "en": "The daemon intercepts every outbound request, allows only what's on the allowlist, and logs every allow and deny to an audit trail. By default only the on-box model endpoint is allowed." },
+      "chips": ["› verdict=ALLOW / DENY", "› 默认只到 127.0.0.1"]
+    },
+    {
+      "title": { "zh": "跑在盒上的国产模型，数据不出境", "en": "Runs on on-box domestic models, data stays put" },
+      "body": { "zh": "Agent 调用的是盒上本地服务的国产模型，不经过任何云——这正是它能进信创/国企内网的原因。", "en": "The agent calls a domestic model served locally on the box — no cloud in the path. That's exactly why it can enter 信创 / state-owned-enterprise intranets." },
+      "chips": ["› 模型端点 127.0.0.1", "› 无云上路径"]
+    },
+    {
+      "title": { "zh": "私有化部署，而非托管 SaaS", "en": "Self-hosted license, not hosted SaaS" },
+      "body": { "zh": "结构上不提供托管 SaaS——数据不出境的合规要求决定了它只能私有化部署。个人评估免费，组织授权按需。", "en": "No hosted SaaS by design — the data-not-crossing-border requirement means it can only be self-hosted. Free for individual eval; org licensing on demand." },
+      "chips": ["› 私有化部署授权", "› 个人免费评估"]
+    }
+  ],
+  "scene": { "kind": "hub-nodes", "nodes": ["笔记本", "mTLS 隧道", "信创 GPU 盒", "本地模型"] },
+  "cta": {
+    "headline": { "zh": "在内网 GPU 盒上开始", "en": "Start on your in-network GPU box" },
+    "sub": { "zh": "一条命令上手，零云上出口。", "en": "One command. Zero cloud egress." },
+    "button": { "zh": "查看 GitHub", "en": "See on GitHub" }
+  },
+  "footer": { "tag": { "zh": "MIT · SuperMarioYL", "en": "MIT · SuperMarioYL" } }
+}
