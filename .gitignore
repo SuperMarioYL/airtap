@@ -1,0 +1,30 @@
+# binaries
+/airtap
+/airtapd
+
+# secrets / audit
+*.pem
+*.key
+audit.log
+
+# build scratch
+BUILD_SETUP_NEXT_STEPS.md
+.spawn.*
+.builder_*
+.build_metadata*
+.stage_*
+_build_ctx.json
+.claude/
+CLAUDE.md
+PUBLISH_BLOCKED.md
+
+# go
+*.test
+*.out
+dist/
+go.work.sum
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/

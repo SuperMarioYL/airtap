@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-label="Airtap atlas (light): ① thin client ② mTLS ③ airtapd (agent loop, tools, egress allowlist proxy, audit log) ④ model endpoint 127.0.0.1">
+  <title>Airtap component atlas (light)</title>
+  <desc>① thin client → ② mTLS tunnel → ③ airtapd containing agent loop, tools, egress allowlist proxy and audit log → ④ loopback model endpoint 127.0.0.1.</desc>
+
+  <!-- background -->
+  <rect width="900" height="420" fill="#ffffff"/>
+
+  <!-- header -->
+  <text x="450" y="34" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="#656d76" text-anchor="middle">airtap · component atlas</text>
+  <line x1="40" y1="50" x2="860" y2="50" stroke="#eaeef2" stroke-width="1"/>
+
+  <!-- ① THIN CLIENT -->
+  <g font-family="ui-monospace, Menlo, monospace">
+    <rect x="30" y="120" width="150" height="120" rx="8" fill="none" stroke="#1f2328" stroke-width="2"/>
+    <text x="105" y="150" font-size="13" fill="#1f2328" text-anchor="middle">thin client</text>
+    <text x="105" y="172" font-size="10" fill="#656d76" text-anchor="middle">Go TUI · laptop</text>
+    <text x="105" y="190" font-size="10" fill="#656d76" text-anchor="middle">client cert (keyring)</text>
+    <text x="105" y="208" font-size="10" fill="#656d76" text-anchor="middle">stream renderer</text>
+    <text x="45" y="140" font-size="12" fill="#1f2328">①</text>
+  </g>
+
+  <!-- connector ①→② -->
+  <line x1="180" y1="180" x2="230" y2="180" stroke="#3fb950" stroke-width="2" stroke-dasharray="5 5">
+    <animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- ② mTLS -->
+  <g font-family="ui-monospace, Menlo, monospace">
+    <rect x="230" y="135" width="110" height="90" rx="8" fill="none" stroke="#1f2328" stroke-width="2"/>
+    <text x="285" y="165" font-size="13" fill="#1f2328" text-anchor="middle">mTLS</text>
+    <text x="285" y="184" font-size="10" fill="#656d76" text-anchor="middle">mutual TLS</text>
+    <text x="285" y="200" font-size="10" fill="#656d76" text-anchor="middle">tunnel · zero egress</text>
+    <text x="245" y="155" font-size="12" fill="#1f2328">②</text>
+  </g>
+
+  <!-- connector ②→③ -->
+  <line x1="340" y1="180" x2="390" y2="180" stroke="#3fb950" stroke-width="2" stroke-dasharray="5 5">
+    <animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- ③ airtapd (big) -->
+  <g font-family="ui-monospace, Menlo, monospace">
+    <rect x="390" y="90" width="300" height="200" rx="8" fill="none" stroke="#1f2328" stroke-width="2"/>
+    <text x="540" y="112" font-size="13" fill="#1f2328" text-anchor="middle">airtapd ③  (信创 GPU box)</text>
+
+    <!-- sub: agent loop -->
+    <rect x="405" y="128" width="130" height="46" rx="5" fill="none" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="470" y="148" font-size="11" fill="#1f2328" text-anchor="middle">agent loop</text>
+    <text x="470" y="164" font-size="9" fill="#656d76" text-anchor="middle">plan → act → observe</text>
+
+    <!-- sub: tools -->
+    <rect x="545" y="128" width="130" height="46" rx="5" fill="none" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="610" y="148" font-size="11" fill="#1f2328" text-anchor="middle">tools</text>
+    <text x="610" y="164" font-size="9" fill="#656d76" text-anchor="middle">fs · proc · net(allow)</text>
+
+    <!-- sub: egress allowlist proxy -->
+    <rect x="405" y="186" width="270" height="46" rx="5" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="540" y="206" font-size="11" fill="#1f2328" text-anchor="middle">egress allowlist proxy</text>
+    <text x="540" y="222" font-size="9" fill="#656d76" text-anchor="middle">loopback only · deny cloud</text>
+
+    <!-- sub: audit log -->
+    <rect x="405" y="244" width="270" height="38" rx="5" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="540" y="262" font-size="11" fill="#1f2328" text-anchor="middle">audit log (append-only)</text>
+    <text x="540" y="276" font-size="9" fill="#656d76" text-anchor="middle">fs.read · fs.write · proc.exec · net.dial</text>
+  </g>
+
+  <!-- connector ③→④ loopback -->
+  <line x1="690" y1="180" x2="740" y2="180" stroke="#58a6ff" stroke-width="2" stroke-dasharray="5 5"/>
+  <circle r="3.5" fill="#58a6ff">
+    <animate attributeName="cx" from="695" to="735" dur="1.4s" repeatCount="indefinite"/>
+    <animate attributeName="cy" values="180;180" dur="1.4s" repeatCount="indefinite"/>
+  </circle>
+  <text x="715" y="170" font-family="ui-monospace, Menlo, monospace" font-size="9" fill="#58a6ff" text-anchor="middle">loopback</text>
+
+  <!-- ④ model endpoint -->
+  <g font-family="ui-monospace, Menlo, monospace">
+    <rect x="740" y="120" width="130" height="120" rx="8" fill="none" stroke="#1f2328" stroke-width="2"/>
+    <text x="805" y="150" font-size="13" fill="#1f2328" text-anchor="middle">model</text>
+    <text x="805" y="170" font-size="11" fill="#58a6ff" text-anchor="middle">endpoint</text>
+    <text x="805" y="190" font-size="10" fill="#656d76" text-anchor="middle">127.0.0.1</text>
+    <text x="805" y="206" font-size="10" fill="#656d76" text-anchor="middle">:11434</text>
+    <text x="755" y="140" font-size="12" fill="#1f2328">④</text>
+  </g>
+
+  <!-- footer notes -->
+  <text x="450" y="372" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#656d76" text-anchor="middle">① thin client → ② mTLS tunnel → ③ airtapd (agent loop · tools · egress allowlist proxy · audit log) → ④ model 127.0.0.1</text>
+  <text x="450" y="392" font-family="ui-monospace, Menlo, monospace" font-size="10" fill="#656d76" text-anchor="middle">zero cloud egress · full audit trail</text>
+</svg>

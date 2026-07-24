@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" role="img" aria-label="Airtap hero (light): thin-client laptop over mTLS tunnel to a 信创 GPU box running airtapd">
+  <title>Airtap hero (light)</title>
+  <desc>Thin-client laptop connects via a mutual-TLS tunnel to a 信创 GPU box running airtapd. Streaming dots animate the tunnel; zero cloud egress.</desc>
+
+  <!-- background -->
+  <rect width="800" height="300" fill="#ffffff"/>
+
+  <!-- subtle baseline rules -->
+  <g stroke="#eaeef2" stroke-width="1">
+    <line x1="0" y1="60" x2="800" y2="60"/>
+    <line x1="0" y1="150" x2="800" y2="150"/>
+    <line x1="0" y1="240" x2="800" y2="240"/>
+  </g>
+
+  <!-- title -->
+  <text x="400" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#656d76" text-anchor="middle">airtap · zero-egress coding agent on 信创 GPU</text>
+
+  <!-- THIN CLIENT (laptop) -->
+  <g font-family="ui-monospace, Menlo, monospace">
+    <rect x="70" y="110" width="140" height="90" rx="6" fill="none" stroke="#1f2328" stroke-width="2"/>
+    <!-- terminal lines -->
+    <line x1="82" y1="128" x2="150" y2="128" stroke="#3fb950" stroke-width="2"/>
+    <line x1="82" y1="140" x2="120" y2="140" stroke="#656d76" stroke-width="2"/>
+    <line x1="82" y1="152" x2="182" y2="152" stroke="#d0d7de" stroke-width="2"/>
+    <line x1="82" y1="164" x2="100" y2="164" stroke="#656d76" stroke-width="2"/>
+    <!-- base -->
+    <rect x="55" y="200" width="170" height="8" rx="3" fill="#d0d7de"/>
+    <text x="140" y="232" font-size="12" fill="#1f2328" text-anchor="middle">thin client</text>
+    <text x="140" y="248" font-size="10" fill="#656d76" text-anchor="middle">laptop · Go TUI</text>
+  </g>
+
+  <!-- mTLS TUNNEL -->
+  <g>
+    <!-- base line -->
+    <line x1="220" y1="155" x2="580" y2="155" stroke="#d0d7de" stroke-width="2"/>
+    <!-- pulsing dashed overlay -->
+    <line x1="220" y1="155" x2="580" y2="155" stroke="#3fb950" stroke-width="3" stroke-dasharray="6 10">
+      <animate attributeName="stroke-dashoffset" from="0" to="-32" dur="0.8s" repeatCount="indefinite"/>
+    </line>
+    <!-- streaming dots -->
+    <circle r="4" fill="#58a6ff">
+      <animate attributeName="cx" from="230" to="570" dur="2.4s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="155;155" dur="2.4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="4" fill="#3fb950">
+      <animate attributeName="cx" from="230" to="570" dur="2.4s" begin="0.8s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="155;155" dur="2.4s" begin="0.8s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="0.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="4" fill="#58a6ff">
+      <animate attributeName="cx" from="230" to="570" dur="2.4s" begin="1.6s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="155;155" dur="2.4s" begin="1.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="1.6s" repeatCount="indefinite"/>
+    </circle>
+    <!-- mTLS badge -->
+    <rect x="372" y="118" width="56" height="22" rx="4" fill="#ffffff" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="400" y="133" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#3fb950" text-anchor="middle">mTLS</text>
+    <text x="400" y="188" font-family="ui-monospace, Menlo, monospace" font-size="10" fill="#656d76" text-anchor="middle">mutual TLS · zero egress</text>
+  </g>
+
+  <!-- 信创 GPU BOX (airtapd) -->
+  <g font-family="ui-monospace, Menlo, monospace">
+    <rect x="600" y="100" width="140" height="120" rx="6" fill="none" stroke="#1f2328" stroke-width="2"/>
+    <!-- vents -->
+    <g stroke="#3fb950" stroke-width="1.5">
+      <line x1="615" y1="120" x2="650" y2="120"/>
+      <line x1="615" y1="130" x2="650" y2="130"/>
+      <line x1="615" y1="140" x2="650" y2="140"/>
+    </g>
+    <!-- status LED (blink) -->
+    <circle cx="720" cy="115" r="3.5" fill="#3fb950">
+      <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite"/>
+    </circle>
+    <text x="670" y="170" font-size="13" fill="#1f2328" text-anchor="middle">airtapd</text>
+    <text x="670" y="186" font-size="10" fill="#656d76" text-anchor="middle">信创 GPU box</text>
+    <text x="670" y="202" font-size="10" fill="#58a6ff" text-anchor="middle">audit · no cloud</text>
+  </g>
+
+  <!-- foot caption -->
+  <text x="400" y="282" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#656d76" text-anchor="middle">thin client ↔ mTLS tunnel ↔ 信创 GPU box</text>
+</svg>

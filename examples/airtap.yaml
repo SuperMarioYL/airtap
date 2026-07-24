@@ -1,0 +1,35 @@
+# Airtap EgressManifest — sample configuration.
+#
+# This is the declarative contract shared (out of band) between the thin
+# client (`airtap run`) and the on-box daemon (`airtapd`). The manifest
+# binds the box address, the on-box model endpoint, the egress policy, and
+# the agent runtime config. See internal/manifest/manifest.go for the
+# schema and validation rules.
+
+# The GPU box the thin client connects to over mutual TLS.
+box:
+  addr: 10.0.0.5:7437        # host:port of the box's airtapd mTLS listener
+  tls: mTLS                  # v0.1 only supports mutual TLS
+  ca: ./ca.pem               # CA used to verify the peer's leaf cert
+
+# The on-box OpenAI-compatible model endpoint. Served on 127.0.0.1 so model
+# calls never leave the box; the egress proxy only needs to allow this one
+# target.
+model:
+  endpoint: http://127.0.0.1:8000/v1
+  name: deepseek-v3
+
+# Outbound dial policy the daemon enforces. The daemon is the only network
+# egress from the box; every attempt (allowed or denied) is appended to the
+# audit log.
+egress:
+  allow:                     # permitted dial targets (host:port)
+    - 127.0.0.1:8000
+  mode: airgap               # airgap: deny every dial not listed in allow
+  audit: ./audit.log         # append-only egress trail
+
+# Agent runtime environment on the box. The daemon chdirs into workdir
+# before running the loop, so tools operate relative to the repo root.
+agent:
+  workdir: /opt/proj
+  tools: [read, write, list, bash]
