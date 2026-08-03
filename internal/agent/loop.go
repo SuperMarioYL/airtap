@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -28,13 +27,17 @@ type Loop struct {
 	client   *model.Client
 	proxy    *egress.Proxy
 	audit    *audit.Audit
+	tools    []Tool // manifest-filtered tool set (fix-manifest-tools-not-honored)
 
 	out io.Writer // streaming progress sink; defaults to os.Stdout
 }
 
 // NewLoop constructs a Loop. The proxy is installed as the process-wide HTTP
 // dialer so every model call (and any other outbound HTTP) is gated by the
-// egress allowlist.
+// egress allowlist. The dispatched tool set is filtered to m.Agent.Tools
+// (fix-manifest-tools-not-honored): an operator who sets tools:[read] gets ONLY
+// read advertised to the model and executed on dispatch — DefaultTools is no
+// longer hardcoded.
 func NewLoop(m *manifest.Manifest, c *model.Client, p *egress.Proxy, a *audit.Audit) *Loop {
 	l := &Loop{
 		manifest: m,
@@ -43,10 +46,37 @@ func NewLoop(m *manifest.Manifest, c *model.Client, p *egress.Proxy, a *audit.Au
 		audit:    a,
 		out:      os.Stdout,
 	}
+	if m != nil {
+		l.tools = filterTools(DefaultTools, m.Agent.Tools)
+	}
 	if p != nil {
 		installEgress(p)
 	}
 	return l
+}
+
+// Tools returns the manifest-filtered tool set this loop advertises and
+// dispatches. Exposed for tests and for airtapd startup logging.
+func (l *Loop) Tools() []Tool {
+	if l.tools == nil {
+		return nil
+	}
+	out := make([]Tool, len(l.tools))
+	copy(out, l.tools)
+	return out
+}
+
+// Dispatch looks up a tool by name in the loop's manifest-filtered set and
+// invokes it with args. Unknown / non-advertised tool names return an error so
+// the loop can surface the failure back to the model as a tool-result. This is
+// the filtered counterpart to the package-level Dispatch(DefaultTools).
+func (l *Loop) Dispatch(name, args string) (string, error) {
+	for _, t := range l.tools {
+		if t.Name == name {
+			return t.Exec(args)
+		}
+	}
+	return "", fmt.Errorf("unknown or disabled tool: %s", name)
 }
 
 // SetOutput redirects the loop's streaming progress. The daemon uses this to pipe
@@ -57,17 +87,17 @@ func (l *Loop) SetOutput(w io.Writer) {
 	}
 }
 
-// installEgress wires p.Dial into the process-wide HTTP transport so that every
-// outbound HTTP dial is gated by the allowlist. If the default transport is not
-// an *http.Transport (e.g. in tests), this is a no-op.
+// installEgress wires p.DialContext into the process-wide HTTP transport so
+// that every outbound HTTP dial is gated by the allowlist AND honors the
+// request context (fix-egress-dial-ignores-context): SIGTERM to airtapd and
+// the model client's HTTPTimeout now propagate into an in-flight dial. If the
+// default transport is not an *http.Transport (e.g. in tests), this is a no-op.
 func installEgress(p *egress.Proxy) {
 	t, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
 		return
 	}
-	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return p.Dial(network, addr)
-	}
+	t.DialContext = p.DialContext
 }
 
 // Run executes the ReAct loop: system prompt -> model.Chat -> dispatch tool calls
@@ -89,7 +119,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) error {
 		{Role: "system", Content: l.systemPrompt()},
 		{Role: "user", Content: prompt},
 	}
-	tools := toModelTools(DefaultTools)
+	tools := toModelTools(l.tools)
 
 	l.stream("airtap: agent loop started, workdir=%s", l.workdir())
 
@@ -127,7 +157,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) error {
 			name := call.Function.Name
 			args := call.Function.Arguments
 			l.stream("airtap: tool: %s %s", name, args)
-			out, derr := Dispatch(name, args)
+			out, derr := l.Dispatch(name, args)
 			if derr != nil {
 				l.stream("airtap: tool %s error: %v", name, derr)
 				out = derr.Error()

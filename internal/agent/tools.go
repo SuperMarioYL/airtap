@@ -30,6 +30,30 @@ var (
 // DefaultTools is the set of built-in tools the loop advertises to the model.
 var DefaultTools = []Tool{read, write, list, bash}
 
+// filterTools returns the subset of all whose Name appears in names, preserving
+// the canonical DefaultTools order. MVP plan §5 fix-manifest-tools-not-honored:
+// an operator restricting `tools: [read]` must get ONLY read advertised and
+// dispatched — the hardcoded DefaultTools set violated the EgressManifest
+// contract. Unknown names are rejected earlier in manifest.Validate, so by the
+// time the loop runs every entry in names is a known tool.
+func filterTools(all []Tool, names []string) []Tool {
+	if len(names) == 0 {
+		return nil
+	}
+	want := make(map[string]bool, len(names))
+	for _, n := range names {
+		want[n] = true
+	}
+	out := make([]Tool, 0, len(names))
+	for _, t := range all {
+		if want[t.Name] {
+			out = append(out, t)
+			delete(want, t.Name) // first match wins; avoids dup-driven entries
+		}
+	}
+	return out
+}
+
 // Dispatch looks up a tool by name in DefaultTools and invokes it with args.
 // Unknown tool names return an error so the loop can surface the failure back to
 // the model as a tool-result.
@@ -104,18 +128,37 @@ func listTool(args string) (string, error) {
 
 // bashTool runs a shell command via `sh -c` and returns combined stdout/stderr.
 // args is the command (plain string) or JSON {"command":"..."}.
+//
+// MOAT-CRITICAL (MVP plan §5 fix-bash-tool-egress-bypass): the subprocess is
+// isolated in a fresh CLONE_NEWNET netns (loopback-only, no default route) so
+// raw-socket tools (curl/wget/nc/bespoke binaries) cannot dial off the box,
+// bypassing the Go-process egress gate. If netns isolation is unavailable
+// (hardened kernel, no CAP_SYS_ADMIN, unprivileged userns disabled) the tool
+// FAILS CLOSED — it refuses to run and returns an error to the agent loop
+// rather than silently falling back to an un-isolated exec. The proxy-env
+// fallback is intentionally dropped (no listening CONNECT proxy; raw-socket
+// tools ignore env). See netns_{linux,other}.go.
 func bashTool(args string) (string, error) {
 	cmd := firstArg(args, "command")
 	if cmd == "" {
 		return "", fmt.Errorf("bash: empty command")
 	}
+	if !netnsAvailable() {
+		return "", fmt.Errorf("bash: netns isolation unavailable; refusing to run (grant airtapd CAP_SYS_ADMIN or enable unprivileged userns to preserve 数据不出境)")
+	}
 	c := exec.Command("sh", "-c", cmd)
+	applyNetns(c)
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("bash: %w", err)
 	}
 	return string(out), nil
 }
+
+// NetnsAvailable reports whether the bash tool can isolate subprocesses in a
+// CLONE_NEWNET netns on this host. airtapd probes it at startup to surface the
+// CAP_SYS_ADMIN / unprivileged-userns requirement before the first `airtap run`.
+func NetnsAvailable() bool { return netnsAvailable() }
 
 // --- tool schema metadata (sent to the model) --------------------------------
 

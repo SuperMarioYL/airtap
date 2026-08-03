@@ -22,6 +22,17 @@ const (
 	ModeAllowlist = "allowlist"
 )
 
+// validTools is the set of tool names the agent loop knows how to advertise
+// and dispatch. fix-manifest-tools-not-honored: an unknown name in
+// agent.tools must surface as a startup validation error rather than silently
+// dropping to a partial (or empty) tool set mid-run.
+var validTools = map[string]bool{
+	"read":  true,
+	"write": true,
+	"list":  true,
+	"bash":  true,
+}
+
 // Box describes the GPU box the thin client connects to over mTLS.
 type Box struct {
 	Addr string `yaml:"addr"` // host:port, e.g. 10.0.0.5:7437
@@ -124,6 +135,13 @@ func (m *Manifest) Validate() error {
 	}
 	if len(m.Agent.Tools) == 0 {
 		errs = append(errs, "agent.tools must be non-empty")
+	}
+	// Reject unknown tool names at startup so a typo (e.g. "reed") fails
+	// fast instead of silently advertising an empty/partial tool set.
+	for _, t := range m.Agent.Tools {
+		if !validTools[t] {
+			errs = append(errs, fmt.Sprintf("agent.tools: unknown tool %q (valid: read, write, list, bash)", t))
+		}
 	}
 
 	if len(errs) > 0 {

@@ -24,6 +24,12 @@ import (
 // stderr so stdout stays clean for the streamed agent log (tui.Stream).
 var log = zerolog.New(os.Stderr).With().Timestamp().Logger()
 
+// version is the thin-client version. Overridden at release time by the
+// goreleaser ldflags `-X main.version=<git tag>` (feat-goreleaser-prebuilt-
+// binary); defaults to "dev" for local `go build` so a bare binary still
+// reports something via `airtap --version`.
+var version = "dev"
+
 // rootCmd is the `airtap` CLI root. Subcommands are wired in init() so
 // each handler file can own its own command + flags.
 var rootCmd = &cobra.Command{
@@ -82,6 +88,9 @@ func init() {
 	rootCmd.AddCommand(connectCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(auditCmd)
+
+	// feat-goreleaser-prebuilt-binary: surface the release-injected version.
+	rootCmd.Version = version
 }
 
 func main() {
@@ -163,6 +172,13 @@ starter airtap.yaml is written only when one is not already present.`,
 		}
 
 		log.Info().Str("dir", dir).Msg("init: complete")
+		// fix-bash-tool-egress-bypass: surface the netns requirement via the
+		// init path so the operator prepares the GPU box (where airtapd runs)
+		// before the first `airtap run`. The bash tool isolates subprocesses in
+		// a CLONE_NEWNET netns; on a box that cannot create one (no CAP_SYS_ADMIN
+		// and unprivileged userns disabled) the bash tool fail-closes.
+		log.Info().Str("hint", "on the GPU box running airtapd: grant CAP_SYS_ADMIN (root) or enable unprivileged userns so the bash tool can isolate subprocesses (CLONE_NEWNET) — without it bash calls fail-closed to preserve 数据不出境").
+			Msg("init: netns requirement")
 		return nil
 	},
 }

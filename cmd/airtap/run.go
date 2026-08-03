@@ -11,9 +11,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 
 	"github.com/SuperMarioYL/airtap/internal/manifest"
 	"github.com/SuperMarioYL/airtap/internal/tui"
@@ -64,7 +66,12 @@ airtapd; the thin client is just the prompt in / log out carrier.`,
 		if err != nil {
 			return err
 		}
-		defer conn.Close()
+		// closeConn is shared by the deferred close and the runStream
+		// cancellation goroutine; sync.Once guards against double-close on
+		// the normal-return path (fix-airtap-run-ctrl-c-blocked).
+		var closeOnce sync.Once
+		closeConn := func() { closeOnce.Do(func() { conn.Close() }) }
+		defer closeConn()
 		log.Info().Str("addr", m.Box.Addr).Str("model", m.Model.Name).Msg("run: mTLS established")
 
 		// The daemon reads the first line as the task prompt.
@@ -75,25 +82,42 @@ airtapd; the thin client is just the prompt in / log out carrier.`,
 		stream := tui.NewStream()
 		defer stream.Close()
 
-		// Render every line the box streams back. The agent loop writes
-		// newline-terminated progress lines over this same conn, so a
-		// line scanner is the natural framing.
-		scanner := bufio.NewScanner(conn)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if err := stream.Render(line); err != nil {
-				return fmt.Errorf("run: render: %w", err)
-			}
-			if ctx.Err() != nil {
-				return nil
-			}
-		}
-		if err := scanner.Err(); err != nil && ctx.Err() == nil {
-			return fmt.Errorf("run: stream: %w", err)
-		}
-		return nil
+		return runStream(ctx, conn, closeConn, stream)
 	},
+}
+
+// runStream renders every line the box streams back over conn. The agent loop
+// writes newline-terminated progress lines over the same conn, so a line
+// scanner is the natural framing.
+//
+// fix-airtap-run-ctrl-c-blocked: scanner.Scan blocks in conn.Read and only
+// checked ctx.Err() after a line arrived, so during a quiet model-generation
+// period (30s+ with no streamed lines) Ctrl-C could not exit until the next
+// line or EOF. A goroutine now closes conn on ctx.Done so the blocking Read
+// returns (EOF / err-closed) and the loop unblocks promptly. closeConn
+// (sync.Once-guarded) is shared with the caller's deferred close to avoid a
+// double-close on the normal-return path.
+func runStream(ctx context.Context, conn net.Conn, closeConn func(), stream *tui.Stream) error {
+	go func() {
+		<-ctx.Done()
+		closeConn()
+	}()
+
+	scanner := bufio.NewScanner(conn)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if err := stream.Render(line); err != nil {
+			return fmt.Errorf("run: render: %w", err)
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
+	}
+	if err := scanner.Err(); err != nil && ctx.Err() == nil {
+		return fmt.Errorf("run: stream: %w", err)
+	}
+	return nil
 }
 
 func init() {

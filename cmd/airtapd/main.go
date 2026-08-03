@@ -74,6 +74,20 @@ func main() {
 	client := model.NewClient(m.Model.Endpoint, m.Model.Name)
 	loop := agent.NewLoop(m, client, proxy, auditLog)
 
+	// fix-bash-tool-egress-bypass: the bash tool isolates subprocesses in a
+	// CLONE_NEWNET netns (loopback-only) so raw-socket tools cannot dial off
+	// the box. Surface the CAP_SYS_ADMIN / unprivileged-userns requirement at
+	// startup so the operator can fix the kernel BEFORE the first `airtap run`
+	// fails closed. airtapd stays up (read/write/list still work); only bash
+	// calls fail-closed while netns is unavailable.
+	if !agent.NetnsAvailable() {
+		log.Warn().
+			Str("hint", "grant airtapd CAP_SYS_ADMIN (root) or enable unprivileged userns (/proc/sys/user/max_user_namespaces>0)").
+			Msg("airtapd: netns isolation unavailable — bash tool will fail-closed until the box can create a CLONE_NEWNET netns")
+	} else {
+		log.Info().Msg("airtapd: netns isolation available — bash subprocesses will be loopback-only")
+	}
+
 	ln, err := tunnel.Listen(m.Box.Addr, m.Box.CA, *certPath, *keyPath)
 	if err != nil {
 		fail(err)
