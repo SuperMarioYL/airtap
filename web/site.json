@@ -6,33 +6,33 @@
   "lang": { "primary": "zh", "toggle": true },
   "accent": ["#3fb950", "#1a7f37"],
   "hero": {
-    "eyebrow": { "zh": "本地 · 零出口 · 可审计", "en": "On-prem · Zero egress · Auditable" },
+    "eyebrow": { "zh": "本地 · 零出口 · 可审计 · 单文件", "en": "On-prem · Zero egress · Auditable · Single file" },
     "headline": { "zh": "一条命令\n在内网 GPU 盒上跑编码 Agent", "en": "Run a coding agent\non your in-network GPU box" },
-    "sub": { "zh": "数据不出境的国企研发，第一次像用云端 runner 一样顺手——每一次外发请求都留痕可审。", "en": "On-prem R&D that finally feels like a cloud runner — every outbound request is logged and audit-ready." },
+    "sub": { "zh": "数据不出境的国企研发，第一次像用云端 runner 一样顺手——连 agent 的 shell 命令都出不了这台盒子，每一次外发请求都留痕可审。", "en": "On-prem R&D that finally feels like a cloud runner — even the agent's shell commands can't leave the box, and every outbound request is logged and audit-ready." },
     "command": "airtap run \"给 server.go 加 /health 接口\"",
     "cta": { "zh": "查看 GitHub", "en": "See on GitHub" },
     "ctaGithub": { "zh": "源码 / README", "en": "Source / README" }
   },
   "advantages": [
     {
-      "title": { "zh": "一条命令，告别隧道拼装", "en": "One command, no more tunnel juggling" },
-      "body": { "zh": "以前在内网 GPU 盒上跑 agent，要手动拼 SSH、tmux、端口转发。Airtap 一条命令就连上、跑起来、流回你的终端。", "en": "Running an agent on an in-network GPU box used to mean hand-wiring SSH, tmux, and port-forwarding. Airtap connects, runs, and streams back to your terminal in one command." },
-      "chips": ["› airtap init 生成证书", "› 30 秒连上"]
+      "title": { "zh": "连 agent 的 shell 命令都出不了这台盒子", "en": "Even the agent's shell commands can't leave the box" },
+      "body": { "zh": "agent 跑的每一条 shell 命令，都在一个没有出口的隔离网络里执行——curl、wget、nc 都拨不出去；盒子若没法这样隔离，命令干脆不跑，绝不留后门。", "en": "Every shell command the agent runs executes inside an isolated network with no way out — curl, wget, nc can't dial off the box; if the box can't enforce that isolation, the command simply won't run. No back door left open." },
+      "chips": ["› shell 命令隔离运行", "› 隔离失败即拒绝执行"]
     },
     {
-      "title": { "zh": "出口只放行白名单，其余一律拒绝", "en": "Egress allowlist — everything else denied" },
-      "body": { "zh": "守护进程拦下每一次外发请求，只放行白名单里的目标，每一次放行与拒绝都写进审计日志。默认只允许调到本地模型端点。", "en": "The daemon intercepts every outbound request, allows only what's on the allowlist, and logs every allow and deny to an audit trail. By default only the on-box model endpoint is allowed." },
-      "chips": ["› verdict=ALLOW / DENY", "› 默认只到 127.0.0.1"]
+      "title": { "zh": "没有审计记录，就不放行任何外发", "en": "No audit record, no egress" },
+      "body": { "zh": "每一次放行与拒绝都写进审计日志；万一审计写不下去（磁盘满、日志损坏），那次拨号直接拒绝——你看到的「零出口」才经得起查。", "en": "Every allow and deny is written to the audit log; if a record can't be made (disk full, broken log), that dial is refused outright — so the \"zero egress\" you see can stand up to an audit." },
+      "chips": ["› 放行/拒绝都留痕", "› 审计写失败则不放行"]
     },
     {
-      "title": { "zh": "跑在盒上的国产模型，数据不出境", "en": "Runs on on-box domestic models, data stays put" },
-      "body": { "zh": "Agent 调用的是盒上本地服务的国产模型，不经过任何云——这正是它能进信创/国企内网的原因。", "en": "The agent calls a domestic model served locally on the box — no cloud in the path. That's exactly why it can enter 信创 / state-owned-enterprise intranets." },
-      "chips": ["› 模型端点 127.0.0.1", "› 无云上路径"]
+      "title": { "zh": "你允许的工具，才是真正会跑的工具", "en": "The tools you allow are the tools that run" },
+      "body": { "zh": "在 airtap.yaml 里写 tools:[read]，agent 就真的只能读——写、list、bash 一概不跑；模型也只调盒上的国产模型，不经任何云。你写的约束，就是执行的约束。", "en": "Write tools:[read] in airtap.yaml and the agent really can only read — write, list, bash stay off; the model only ever calls the on-box domestic model, no cloud in the path. The constraint you write is the constraint that runs." },
+      "chips": ["› 写 read 就只能读", "› 模型只在 127.0.0.1"]
     },
     {
-      "title": { "zh": "私有化部署，而非托管 SaaS", "en": "Self-hosted license, not hosted SaaS" },
-      "body": { "zh": "结构上不提供托管 SaaS——数据不出境的合规要求决定了它只能私有化部署。个人评估免费，组织授权按需。", "en": "No hosted SaaS by design — the data-not-crossing-border requirement means it can only be self-hosted. Free for individual eval; org licensing on demand." },
-      "chips": ["› 私有化部署授权", "› 个人免费评估"]
+      "title": { "zh": "按 Ctrl-C 就停，一条命令就装好", "en": "Ctrl-C stops it, one command installs it" },
+      "body": { "zh": "卡住的拨号、静默的生成都能被 Ctrl-C 即时打断；安装也不用先搭编译环境，一条命令拉下来就能跑。", "en": "A stuck dial, a quiet generation — Ctrl-C breaks out at once; and you install it without setting up a build environment, one command pulls it down and you're running." },
+      "chips": ["› Ctrl-C 即时退出", "› curl|tar 一键安装"]
     }
   ],
   "scene": { "kind": "hub-nodes", "nodes": ["笔记本", "mTLS 隧道", "信创 GPU 盒", "本地模型"] },
