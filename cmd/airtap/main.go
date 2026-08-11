@@ -26,9 +26,9 @@ var log = zerolog.New(os.Stderr).With().Timestamp().Logger()
 
 // version is the thin-client version. Overridden at release time by the
 // goreleaser ldflags `-X main.version=<git tag>` (feat-goreleaser-prebuilt-
-// binary); defaults to "dev" for local `go build` so a bare binary still
-// reports something via `airtap --version`.
-var version = "dev"
+// binary); stamped to the current release for local `go build` so a bare
+// binary reports a real version via `airtap --version`.
+var version = "0.3.0"
 
 // rootCmd is the `airtap` CLI root. Subcommands are wired in init() so
 // each handler file can own its own command + flags.

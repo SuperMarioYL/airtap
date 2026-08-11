@@ -22,6 +22,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      # fix-attribution-leak-enforce-repo-topics: fail the release before any
+      # binary is built if the repo metadata (topics / description / homepage)
+      # carries a banned attribution string. `gh` is preinstalled on ubuntu
+      # runners; GH_TOKEN lets it read repo metadata. Runs fail-closed.
+      - name: Verify no attribution leaks in repo metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/check_topics.sh
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

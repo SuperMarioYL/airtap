@@ -20,11 +20,19 @@ import (
 // MaxIterations bounds the ReAct loop to prevent runaway tool calls.
 const MaxIterations = 8
 
+// chatClient is the model surface the loop depends on. *model.Client satisfies
+// it; the interface lets tests drive Run with a fake that returns canned tool
+// calls (fix-bash-tool-output-discarded-on-error regression coverage) without a
+// live on-box model endpoint.
+type chatClient interface {
+	Chat(messages []model.Message, tools []model.Tool) (*model.ChatResponse, error)
+}
+
 // Loop is the on-box ReAct agent loop. It binds a manifest, a model client, the
 // egress proxy (the sole network egress), and an audit log.
 type Loop struct {
 	manifest *manifest.Manifest
-	client   *model.Client
+	client   chatClient
 	proxy    *egress.Proxy
 	audit    *audit.Audit
 	tools    []Tool // manifest-filtered tool set (fix-manifest-tools-not-honored)
@@ -41,10 +49,15 @@ type Loop struct {
 func NewLoop(m *manifest.Manifest, c *model.Client, p *egress.Proxy, a *audit.Audit) *Loop {
 	l := &Loop{
 		manifest: m,
-		client:   c,
 		proxy:    p,
 		audit:    a,
 		out:      os.Stdout,
+	}
+	// Assign the concrete *model.Client to the chatClient interface only when
+	// non-nil, so a nil client stays a nil interface (not a typed-nil) and the
+	// Run nil-check below behaves correctly.
+	if c != nil {
+		l.client = c
 	}
 	if m != nil {
 		l.tools = filterTools(DefaultTools, m.Agent.Tools)
@@ -160,7 +173,19 @@ func (l *Loop) Run(ctx context.Context, prompt string) error {
 			out, derr := l.Dispatch(name, args)
 			if derr != nil {
 				l.stream("airtap: tool %s error: %v", name, derr)
-				out = derr.Error()
+				// fix-bash-tool-output-discarded-on-error: bashTool returns the
+				// command's combined stdout/stderr as its first value alongside
+				// a wrapped error (tools.go: `return string(out), fmt.Errorf("bash: %w", err)`).
+				// Preserve that output for the model and append the error string
+				// instead of overwriting it with a bare "bash: exit status 1" —
+				// otherwise the ReAct loop never sees the compiler/test/grep
+				// output it needs to debug the failure, breaking it precisely on
+				// the failing-path cases (go build / go test) that matter most.
+				if out == "" {
+					out = derr.Error()
+				} else {
+					out = out + "\n" + derr.Error()
+				}
 			} else {
 				l.stream("airtap: tool %s result: %s", name, truncate(out, 200))
 			}

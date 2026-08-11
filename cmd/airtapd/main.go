@@ -12,6 +12,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -140,13 +141,37 @@ func handleConn(ctx context.Context, loop *agent.Loop, conn net.Conn) {
 	// Pipe loop progress over this connection to the thin-client TUI.
 	loop.SetOutput(conn)
 
-	runCtx, cancel := context.WithCancel(ctx)
+	// fix-daemon-loop-keeps-running-after-client-disconnect: runCtx was derived
+	// only from the daemon-wide signal context, so a client disconnect (Ctrl-C
+	// on `airtap run` closes the mTLS conn) left the on-box loop issuing model
+	// calls into a dead conn for up to MaxIterations (~40 min of wasted GPU
+	// time) and blocked a reconnecting operator behind loopMu. Tie runCtx to
+	// the conn lifetime: a goroutine drains the conn and calls cancel on the
+	// first read error/EOF, so a disconnect cancels runCtx and loop.Run aborts
+	// at the next iteration boundary (loop.go checks ctx.Err() each turn).
+	runCtx, cancel := connContext(ctx, reader)
 	defer cancel()
 
 	if err := loop.Run(runCtx, prompt); err != nil {
 		fmt.Fprintf(conn, "airtap: error: %v\n", err)
 		log.Error().Err(err).Msg("airtapd: loop")
 	}
+}
+
+// connContext returns a context derived from parent that is canceled as soon
+// as the client connection closes (the drain goroutine's io.Copy returns on
+// the first read error / EOF). This binds the loop's runCtx to conn lifetime
+// so a thin-client disconnect cancels the on-box loop promptly instead of
+// leaving it writing into a dead conn (fix-daemon-loop-keeps-running-after-
+// client-disconnect). It reads from r (the prompt reader, whose buffer is
+// empty after the prompt was consumed) so any buffered bytes are drained too.
+func connContext(parent context.Context, r io.Reader) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+	go func() {
+		_, _ = io.Copy(io.Discard, r) // blocks until the client closes / EOFs
+		cancel()
+	}()
+	return ctx, cancel
 }
 
 // fail logs a fatal error and exits. Used for startup-time failures where
