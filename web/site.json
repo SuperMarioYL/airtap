@@ -8,7 +8,7 @@
   "hero": {
     "eyebrow": { "zh": "本地 · 零出口 · 可审计 · 单文件", "en": "On-prem · Zero egress · Auditable · Single file" },
     "headline": { "zh": "一条命令\n在内网 GPU 盒上跑编码 Agent", "en": "Run a coding agent\non your in-network GPU box" },
-    "sub": { "zh": "数据不出境的国企研发，第一次像用云端 runner 一样顺手——连 agent 的 shell 命令都出不了这台盒子，每一次外发请求都留痕可审。", "en": "On-prem R&D that finally feels like a cloud runner — even the agent's shell commands can't leave the box, and every outbound request is logged and audit-ready." },
+    "sub": { "zh": "数据不出境的国企研发，第一次像用云端 runner 一样顺手——agent 的 shell 命令出不了这台盒子，每一次外发都留痕可审，你一断开它就停。", "en": "On-prem R&D that finally feels like a cloud runner — the agent's shell commands can't leave the box, every outbound call is logged and audit-ready, and the moment you disconnect it stops." },
     "command": "airtap run \"给 server.go 加 /health 接口\"",
     "cta": { "zh": "查看 GitHub", "en": "See on GitHub" },
     "ctaGithub": { "zh": "源码 / README", "en": "Source / README" }
@@ -30,9 +30,9 @@
       "chips": ["› 写 read 就只能读", "› 模型只在 127.0.0.1"]
     },
     {
-      "title": { "zh": "按 Ctrl-C 就停，一条命令就装好", "en": "Ctrl-C stops it, one command installs it" },
-      "body": { "zh": "卡住的拨号、静默的生成都能被 Ctrl-C 即时打断；安装也不用先搭编译环境，一条命令拉下来就能跑。", "en": "A stuck dial, a quiet generation — Ctrl-C breaks out at once; and you install it without setting up a build environment, one command pulls it down and you're running." },
-      "chips": ["› Ctrl-C 即时退出", "› curl|tar 一键安装"]
+      "title": { "zh": "你走开，它就停；你的 agent，也能进来", "en": "Walk away and it stops; your own agent can come in" },
+      "body": { "zh": "笔记本一断开，盒上的 agent 循环立刻取消——你走后不会有僵尸进程空烧 GPU；命令失败，agent 读得到报错自己改，不用你盯着；出口隔离 + 审计 + 工具白名单现在还是一份插件接口，你自带的 agent 循环实现它就能跑进这座盒子，出口仍由盒子说了算。", "en": "The moment your laptop disconnects, the on-box loop cancels — no zombie process burns the GPU after you walk away; when a command fails, the agent reads the error and self-corrects instead of flying blind; the egress isolation + audit + tool allowlist is now a plug-in interface too, so your own agent loop can run inside the box, with egress still decided by the box." },
+      "chips": ["› 断开即停，不空烧 GPU", "› 命令失败，agent 读得到报错", "› 插件接口：自带 agent loop"]
     }
   ],
   "scene": { "kind": "hub-nodes", "nodes": ["笔记本", "mTLS 隧道", "信创 GPU 盒", "本地模型"] },
