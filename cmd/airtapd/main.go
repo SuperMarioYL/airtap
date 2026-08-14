@@ -25,6 +25,7 @@ import (
 	"github.com/SuperMarioYL/airtap/internal/egress"
 	"github.com/SuperMarioYL/airtap/internal/manifest"
 	"github.com/SuperMarioYL/airtap/internal/model"
+	"github.com/SuperMarioYL/airtap/internal/plugin"
 	"github.com/SuperMarioYL/airtap/internal/tunnel"
 	"github.com/rs/zerolog"
 )
@@ -74,6 +75,13 @@ func main() {
 	proxy := egress.NewProxy(m.Egress.Allow, auditLog)
 	client := model.NewClient(m.Model.Endpoint, m.Model.Name)
 	loop := agent.NewLoop(m, client, proxy, auditLog)
+
+	// feat-agent-plugin-runtime-wrappers (v0.4.0): register the concrete Aider
+	// loader so the plugin spec shipped in v0.3.0 now resolves a real adapter.
+	// The host owns the egress/audit/netns moat; the plugin owns the agent workflow.
+	registry := plugin.NewRegistry()
+	registry.Register("aider", &plugin.AiderLoader{})
+	log.Info().Str("plugins", "aider").Msg("airtapd: plugin registry loaded")
 
 	// fix-bash-tool-egress-bypass: the bash tool isolates subprocesses in a
 	// CLONE_NEWNET netns (loopback-only) so raw-socket tools cannot dial off

@@ -27,12 +27,11 @@ set -uo pipefail
 # base64 of the newline-separated banned denylist. `printf '%s' "$DENY_B64" |
 # base64 -d` yields one banned string per line. Encoded so this file never
 # carries the plaintext tokens the publish gate scans for.
-DENY_B64="c29sby1kZXYKaXRsZWl5dQp3b3Jrc3BhY2UvcHJvamVjdHMKRi1wbGFuCnRvcF9rLXdpbm5lcgpDby1BdXRob3JlZC1CeQpub3JlcGx5QGFudGhyb3BpYwpHZW5lcmF0ZWQgd2l0aCBDbGF1ZGUK"
-# NOTE: the portfolio-discovery marker topic (added by publish tooling to every
-# shipped product) is intentionally EXCLUDED from this metadata gate; that marker
-# is enforced separately by the code-level leak gate (publish_repo.sh GATE 2) which
-# scans tracked source. Removing the marker topic portfolio-wide is a separate
-# tooling-reconciliation task; this gate targets genuine authorship leaks only.
+DENY_B64="c29sby1kZXYKaXRsZWl5dQp3b3Jrc3BhY2UvcHJvamVjdHMKRi1wbGFuCnRvcF9rLXdpbm5lcgpDby1BdXRob3JlZC1CeQpub3JlcGx5QGFudGhyb3BpYwpHZW5lcmF0ZWQgd2l0aCBDbGF1ZGUKYWktcmFkYXIK"
+# v0.4.0: the portfolio-discovery marker topic is now included in the denylist
+# so the gate enforces the banned_paradigm as written — the v0.3.0 gate
+# deliberately excluded it, leaving the marker on the live repo despite the
+# paradigm banning it on repo topics.
 
 repo="${GITHUB_REPOSITORY:-}"
 

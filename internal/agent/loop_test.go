@@ -74,7 +74,7 @@ func (f *fakeChatClient) Chat(messages []model.Message, tools []model.Tool) (*mo
 // "bash: exit status 1" the old overwrite (`out = derr.Error()`) produced.
 func TestLoopPreservesToolOutputOnToolError(t *testing.T) {
 	const wantOut = "main.go:12: undefined: foo\nmain.go:13: undefined: bar"
-	execFn := func(args string) (string, error) {
+	execFn := func(ctx context.Context, args string) (string, error) {
 		return wantOut, fmt.Errorf("bash: exit 1")
 	}
 	fc := &fakeChatClient{toolName: "bash", toolArgs: "go build ./...", final: "fixed"}
@@ -112,7 +112,7 @@ func TestLoopPreservesToolOutputOnToolError(t *testing.T) {
 // (e.g. bashTool fail-closed when netns isolation is unavailable), the message
 // falls back to the bare error string (no trailing newline, no empty prefix).
 func TestLoopFallsBackToErrorWhenToolOutputEmpty(t *testing.T) {
-	execFn := func(args string) (string, error) {
+	execFn := func(ctx context.Context, args string) (string, error) {
 		return "", fmt.Errorf("bash: netns isolation unavailable")
 	}
 	fc := &fakeChatClient{toolName: "bash", toolArgs: "echo hi", final: "ok"}
@@ -129,7 +129,7 @@ func TestLoopFallsBackToErrorWhenToolOutputEmpty(t *testing.T) {
 // A tool that succeeds (no error) must pass its output through unchanged —
 // the append logic must only run on the derr != nil branch.
 func TestLoopPassesThroughToolOutputOnSuccess(t *testing.T) {
-	execFn := func(args string) (string, error) {
+	execFn := func(ctx context.Context, args string) (string, error) {
 		return "ok output", nil
 	}
 	fc := &fakeChatClient{toolName: "read", toolArgs: "/dev/null", final: "done"}

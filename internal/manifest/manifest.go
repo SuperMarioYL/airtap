@@ -59,8 +59,9 @@ type Egress struct {
 
 // AgentCfg describes the agent runtime environment on the box.
 type AgentCfg struct {
-	Workdir string   `yaml:"workdir"` // repo root the agent edits
-	Tools   []string `yaml:"tools"`  // enabled tools: read,write,list,bash
+	Workdir      string   `yaml:"workdir"`       // repo root the agent edits
+	Tools        []string `yaml:"tools"`        // enabled tools: read,write,list,bash
+	MaxIterations int      `yaml:"max_iterations"` // v0.4.0: optional ReAct cap; 0 => default 25, ceiling 100
 }
 
 // Manifest is the parsed, validated EgressManifest contract. It is the
@@ -142,6 +143,11 @@ func (m *Manifest) Validate() error {
 		if !validTools[t] {
 			errs = append(errs, fmt.Sprintf("agent.tools: unknown tool %q (valid: read, write, list, bash)", t))
 		}
+	}
+	// v0.4.0: max_iterations is optional (0 => default), but a negative value
+	// is a startup error so a typo doesn't silently disable the cap.
+	if m.Agent.MaxIterations < 0 {
+		errs = append(errs, "agent.max_iterations must be >= 0 (0 uses the default)")
 	}
 
 	if len(errs) > 0 {

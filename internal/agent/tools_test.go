@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -49,7 +50,7 @@ func TestBashToolFailClosedWhenNetnsUnavailable(t *testing.T) {
 	t.Cleanup(func() { netnsAvailable = saved })
 	netnsAvailable = func() bool { return false }
 
-	out, err := bashTool("echo hi")
+	out, err := bashTool(context.Background(), "echo hi")
 	if err == nil {
 		t.Fatalf("expected fail-closed error when netns unavailable; got output %q", out)
 	}
@@ -76,20 +77,20 @@ func TestNewLoopFiltersToolsByManifest(t *testing.T) {
 	}
 
 	// Dispatch of a non-advertised tool must error.
-	if _, err := l.Dispatch("write", `{"path":"/tmp/x","content":"y"}`); err == nil {
+	if _, err := l.Dispatch(context.Background(), "write", `{"path":"/tmp/x","content":"y"}`); err == nil {
 		t.Fatalf("expected Dispatch(write) to be rejected under a tools:[read] manifest")
 	}
-	if _, err := l.Dispatch("bash", `{"command":"echo hi"}`); err == nil {
+	if _, err := l.Dispatch(context.Background(), "bash", `{"command":"echo hi"}`); err == nil {
 		t.Fatalf("expected Dispatch(bash) to be rejected under a tools:[read] manifest")
 	}
 
-	// Dispatch of the advertised tool must work (read on a real file).
-	out, err := l.Dispatch("read", "/dev/null")
+	// Dispatch of the advertised tool must work (read on a real, workdir-safe file).
+	out, err := l.Dispatch(context.Background(), "read", "tools.go")
 	if err != nil {
-		t.Fatalf("expected Dispatch(read /dev/null) to succeed, got: %v", err)
+		t.Fatalf("expected Dispatch(read tools.go) to succeed, got: %v", err)
 	}
-	if out != "" {
-		t.Fatalf("expected empty /dev/null read, got %q", out)
+	if out == "" {
+		t.Fatalf("expected non-empty tools.go read, got empty")
 	}
 }
 
@@ -118,4 +119,27 @@ func names(ts []Tool) []string {
 		out = append(out, t.Name)
 	}
 	return out
+}
+
+// fix-file-tools-path-injection: safePath must reject absolute paths and
+// traversal paths that escape the process workdir, so a model or
+// prompt-injection cannot read /etc/shadow or write /etc/cron.d/evil.
+func TestSafePathRejectsEscape(t *testing.T) {
+	cases := []string{"/etc/shadow", "/etc/cron.d/evil", "../../etc/passwd", "/dev/null"}
+	for _, p := range cases {
+		if _, err := safePath(p); err == nil {
+			t.Fatalf("safePath(%q) should reject (escapes workdir), got nil", p)
+		}
+	}
+}
+
+// safePath must accept a relative path that stays under the workdir.
+func TestSafePathAcceptsWorkdirRelative(t *testing.T) {
+	safe, err := safePath("tools.go")
+	if err != nil {
+		t.Fatalf("safePath(tools.go) should accept, got: %v", err)
+	}
+	if safe == "" {
+		t.Fatal("safePath(tools.go) returned empty path")
+	}
 }

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,12 +10,13 @@ import (
 	"strings"
 )
 
-// Tool is an executable agent tool. Exec receives the raw arguments string (as
-// produced by the model — typically a JSON object per the tool's schema) and
-// returns the tool's text output.
+// Tool is an executable agent tool. Exec receives the run context (so a hanging
+// command can be canceled — fix-bash-tool-uncancelable-hang) and the raw arguments
+// string (as produced by the model — typically a JSON object per the tool's schema)
+// and returns the tool's text output.
 type Tool struct {
 	Name string
-	Exec func(args string) (string, error)
+	Exec func(ctx context.Context, args string) (string, error)
 }
 
 // The four built-in tools available on every box: read, write, list, bash.
@@ -57,10 +59,10 @@ func filterTools(all []Tool, names []string) []Tool {
 // Dispatch looks up a tool by name in DefaultTools and invokes it with args.
 // Unknown tool names return an error so the loop can surface the failure back to
 // the model as a tool-result.
-func Dispatch(name, args string) (string, error) {
+func Dispatch(ctx context.Context, name, args string) (string, error) {
 	for _, t := range DefaultTools {
 		if t.Name == name {
-			return t.Exec(args)
+			return t.Exec(ctx, args)
 		}
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
@@ -68,14 +70,66 @@ func Dispatch(name, args string) (string, error) {
 
 // --- tool implementations -----------------------------------------------------
 
+// safePath resolves p against the process working directory (set by airtapd to
+// manifest.agent.workdir) and rejects any path that escapes the workdir root
+// after symlink resolution (fix-file-tools-path-injection). The file tools
+// (read/write/list) were left without a filesystem jail while the bash tool was
+// netns-hardened for network egress; safePath closes that gap so a model or
+// prompt-injection cannot read /etc/shadow or write /etc/cron.d/evil.
+func safePath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", fmt.Errorf("path: resolve %s: %w", p, err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("path: workdir: %w", err)
+	}
+	// Evaluate symlinks so ../ and symlink chains can't escape.
+	eval, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		// A non-existent target is fine for write (MkdirAll creates it); resolve
+		// the parent and check that stays under the workdir.
+		eval = abs
+	}
+	if eval == "" {
+		eval = abs
+	}
+	// Walk up to the first existing ancestor for symlink eval, then re-append.
+	if _, statErr := os.Stat(eval); statErr != nil {
+		parent := filepath.Dir(eval)
+		for parent != "/" {
+			if _, e := os.Stat(parent); e == nil {
+				if rp, e := filepath.EvalSymlinks(parent); e == nil {
+					eval = filepath.Join(rp, filepath.Base(abs))
+				}
+				break
+			}
+			parent = filepath.Dir(parent)
+		}
+	}
+	rel, err := filepath.Rel(cwd, eval)
+	if err != nil {
+		return "", fmt.Errorf("path: %s escapes workdir %s", p, cwd)
+	}
+	if strings.HasPrefix(rel, "..") || rel == ".." {
+		return "", fmt.Errorf("path: %s escapes workdir %s (resolved %s)", p, cwd, eval)
+	}
+	return abs, nil
+}
+
 // readTool returns the contents of a file. args is the path (plain string), or a
 // JSON {"path":"..."} object.
-func readTool(args string) (string, error) {
+func readTool(ctx context.Context, args string) (string, error) {
 	path := firstArg(args, "path")
 	if path == "" {
 		return "", fmt.Errorf("read: empty path")
 	}
-	b, err := os.ReadFile(path)
+	safe, err := safePath(path)
+	if err != nil {
+		return "", err
+	}
+	b, err := os.ReadFile(safe)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", path, err)
 	}
@@ -84,7 +138,7 @@ func readTool(args string) (string, error) {
 
 // writeTool writes content to a file, creating parent directories as needed. args
 // must be JSON {"path":"...","content":"..."}.
-func writeTool(args string) (string, error) {
+func writeTool(ctx context.Context, args string) (string, error) {
 	var v struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -95,10 +149,14 @@ func writeTool(args string) (string, error) {
 	if v.Path == "" {
 		return "", fmt.Errorf("write: empty path")
 	}
-	if err := os.MkdirAll(filepath.Dir(v.Path), 0o755); err != nil {
+	safe, err := safePath(v.Path)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(safe), 0o755); err != nil {
 		return "", fmt.Errorf("write %s: mkdir: %w", v.Path, err)
 	}
-	if err := os.WriteFile(v.Path, []byte(v.Content), 0o644); err != nil {
+	if err := os.WriteFile(safe, []byte(v.Content), 0o644); err != nil {
 		return "", fmt.Errorf("write %s: %w", v.Path, err)
 	}
 	return fmt.Sprintf("wrote %d bytes to %s", len(v.Content), v.Path), nil
@@ -106,12 +164,16 @@ func writeTool(args string) (string, error) {
 
 // listTool lists the entries of a directory. args is the dir path (plain string,
 // defaults to "."), or JSON {"path":"..."}.
-func listTool(args string) (string, error) {
+func listTool(ctx context.Context, args string) (string, error) {
 	dir := firstArg(args, "path")
 	if dir == "" {
 		dir = "."
 	}
-	entries, err := os.ReadDir(dir)
+	safe, err := safePath(dir)
+	if err != nil {
+		return "", err
+	}
+	entries, err := os.ReadDir(safe)
 	if err != nil {
 		return "", fmt.Errorf("list %s: %w", dir, err)
 	}
@@ -138,7 +200,7 @@ func listTool(args string) (string, error) {
 // rather than silently falling back to an un-isolated exec. The proxy-env
 // fallback is intentionally dropped (no listening CONNECT proxy; raw-socket
 // tools ignore env). See netns_{linux,other}.go.
-func bashTool(args string) (string, error) {
+func bashTool(ctx context.Context, args string) (string, error) {
 	cmd := firstArg(args, "command")
 	if cmd == "" {
 		return "", fmt.Errorf("bash: empty command")
@@ -146,7 +208,7 @@ func bashTool(args string) (string, error) {
 	if !netnsAvailable() {
 		return "", fmt.Errorf("bash: netns isolation unavailable; refusing to run (grant airtapd CAP_SYS_ADMIN or enable unprivileged userns to preserve 数据不出境)")
 	}
-	c := exec.Command("sh", "-c", cmd)
+	c := exec.CommandContext(ctx, "sh", "-c", cmd)
 	applyNetns(c)
 	out, err := c.CombinedOutput()
 	if err != nil {

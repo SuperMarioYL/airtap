@@ -17,8 +17,14 @@ import (
 	"github.com/SuperMarioYL/airtap/internal/model"
 )
 
-// MaxIterations bounds the ReAct loop to prevent runaway tool calls.
-const MaxIterations = 8
+// DefaultMaxIterations is the default ReAct loop cap when the manifest does not
+// set agent.max_iterations (fix-max-iterations-too-low: 8 was too low for real
+// coding tasks; 25 lets a typical read/edit/build/fix/re-run cycle complete).
+const DefaultMaxIterations = 25
+
+// MaxIterationsCeiling is the hard upper bound on agent.max_iterations so a typo
+// (e.g. 999999) cannot trigger runaway GPU spend.
+const MaxIterationsCeiling = 100
 
 // chatClient is the model surface the loop depends on. *model.Client satisfies
 // it; the interface lets tests drive Run with a fake that returns canned tool
@@ -36,6 +42,7 @@ type Loop struct {
 	proxy    *egress.Proxy
 	audit    *audit.Audit
 	tools    []Tool // manifest-filtered tool set (fix-manifest-tools-not-honored)
+	maxIter  int    // ReAct cap; manifest-configurable (fix-max-iterations-too-low)
 
 	out io.Writer // streaming progress sink; defaults to os.Stdout
 }
@@ -52,6 +59,7 @@ func NewLoop(m *manifest.Manifest, c *model.Client, p *egress.Proxy, a *audit.Au
 		proxy:    p,
 		audit:    a,
 		out:      os.Stdout,
+		maxIter:  DefaultMaxIterations,
 	}
 	// Assign the concrete *model.Client to the chatClient interface only when
 	// non-nil, so a nil client stays a nil interface (not a typed-nil) and the
@@ -61,6 +69,13 @@ func NewLoop(m *manifest.Manifest, c *model.Client, p *egress.Proxy, a *audit.Au
 	}
 	if m != nil {
 		l.tools = filterTools(DefaultTools, m.Agent.Tools)
+		// fix-max-iterations-too-low: honor agent.max_iterations from the manifest.
+		if n := m.Agent.MaxIterations; n > 0 {
+			l.maxIter = n
+			if l.maxIter > MaxIterationsCeiling {
+				l.maxIter = MaxIterationsCeiling
+			}
+		}
 	}
 	if p != nil {
 		installEgress(p)
@@ -80,13 +95,14 @@ func (l *Loop) Tools() []Tool {
 }
 
 // Dispatch looks up a tool by name in the loop's manifest-filtered set and
-// invokes it with args. Unknown / non-advertised tool names return an error so
-// the loop can surface the failure back to the model as a tool-result. This is
-// the filtered counterpart to the package-level Dispatch(DefaultTools).
-func (l *Loop) Dispatch(name, args string) (string, error) {
+// invokes it with args, threading the run context so a hanging command can be
+// canceled (fix-bash-tool-uncancelable-hang). Unknown / non-advertised tool names
+// return an error so the loop can surface the failure back to the model as a
+// tool-result.
+func (l *Loop) Dispatch(ctx context.Context, name, args string) (string, error) {
 	for _, t := range l.tools {
 		if t.Name == name {
-			return t.Exec(args)
+			return t.Exec(ctx, args)
 		}
 	}
 	return "", fmt.Errorf("unknown or disabled tool: %s", name)
@@ -134,9 +150,16 @@ func (l *Loop) Run(ctx context.Context, prompt string) error {
 	}
 	tools := toModelTools(l.tools)
 
+	// Defensive: a Loop constructed via a struct literal (e.g. in tests) may
+	// have maxIter == 0; fall back to the default so the loop actually runs.
+	maxIter := l.maxIter
+	if maxIter <= 0 {
+		maxIter = DefaultMaxIterations
+	}
+
 	l.stream("airtap: agent loop started, workdir=%s", l.workdir())
 
-	for i := 1; i <= MaxIterations; i++ {
+	for i := 1; i <= maxIter; i++ {
 		// Honor cancellation between turns.
 		if err := ctx.Err(); err != nil {
 			return err
@@ -170,7 +193,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) error {
 			name := call.Function.Name
 			args := call.Function.Arguments
 			l.stream("airtap: tool: %s %s", name, args)
-			out, derr := l.Dispatch(name, args)
+			out, derr := l.Dispatch(ctx, name, args)
 			if derr != nil {
 				l.stream("airtap: tool %s error: %v", name, derr)
 				// fix-bash-tool-output-discarded-on-error: bashTool returns the
@@ -199,7 +222,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) error {
 	}
 
 	l.stream("airtap: max iterations reached")
-	return fmt.Errorf("agent: max iterations (%d) reached", MaxIterations)
+	return fmt.Errorf("agent: max iterations (%d) reached", maxIter)
 }
 
 // systemPrompt builds the system message: who the agent is, where it runs, which
