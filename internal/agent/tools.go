@@ -85,6 +85,18 @@ func safePath(p string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("path: workdir: %w", err)
 	}
+	// Resolve the cwd through symlinks too, so it shares the same namespace as
+	// the symlink-resolved target below (fix-safepath-symlink-cwd-breaks-file-
+	// tools). On a host whose workdir is reached via a symlink (e.g. /tmp ->
+	// /private/tmp, or a bind-mounted / shortcut-linked repo root on a 信创 box),
+	// an unresolved cwd left filepath.Rel comparing /tmp/proj against
+	// /private/tmp/proj/file; the relative path then started with ".." and every
+	// file was falsely rejected as an escape, breaking read/write/list entirely.
+	// Fall back to the raw cwd if it cannot be resolved (a non-existent cwd
+	// still behaves as before).
+	if resolved, e := filepath.EvalSymlinks(cwd); e == nil && resolved != "" {
+		cwd = resolved
+	}
 	// Evaluate symlinks so ../ and symlink chains can't escape.
 	eval, err := filepath.EvalSymlinks(abs)
 	if err != nil {

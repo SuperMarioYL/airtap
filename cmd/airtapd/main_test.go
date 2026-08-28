@@ -60,3 +60,38 @@ func TestConnContextStaysAliveWhileConnOpen(t *testing.T) {
 	default:
 	}
 }
+
+// fix-airtapd-sigterm-blocked-in-accept (v0.5.0): SIGTERM must unblock the
+// daemon's accept loop, not hang in ln.Accept until the next inbound connection.
+// The prior for-loop checked ctx.Err() only AFTER Accept returned; on a quiet
+// box `systemctl stop airtapd` (SIGTERM) hung the daemon because nothing closed
+// the listener on ctx.Done. The fix's ctx.Done -> ln.Close goroutine (sync.Once
+// guarded) closes the listener so Accept returns net.ErrClosed and the loop
+// exits. This uses a plain tcp listener (the ctx->close behavior is
+// transport-agnostic) and asserts the loop exits within ~2s of cancel.
+func TestAcceptLoopExitsOnContextCancel(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		acceptLoop(ctx, ln, func(net.Conn) {})
+		close(done)
+	}()
+
+	// Quiet box: no inbound connections. Give the loop time to settle into the
+	// blocking Accept, then simulate SIGTERM via ctx cancel.
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+		// expected: ctx.Done closed ln -> Accept returned net.ErrClosed -> loop exited
+	case <-time.After(2 * time.Second):
+		t.Fatalf("acceptLoop did not exit within 2s of ctx cancel — SIGTERM still blocked in ln.Accept")
+	}
+}

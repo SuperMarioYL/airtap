@@ -80,8 +80,12 @@ func main() {
 	// loader so the plugin spec shipped in v0.3.0 now resolves a real adapter.
 	// The host owns the egress/audit/netns moat; the plugin owns the agent workflow.
 	registry := plugin.NewRegistry()
-	registry.Register("aider", &plugin.AiderLoader{})
-	log.Info().Str("plugins", "aider").Msg("airtapd: plugin registry loaded")
+	// fix-aider-plugin-ignores-onbox-endpoint (v0.5.0): thread the manifest's
+	// on-box model endpoint + name into the Aider loader so the adapter wires
+	// aider to 127.0.0.1 behind the egress proxy + netns moat instead of its
+	// default cloud endpoint (which the moat blocks on a 数据不出境 box).
+	registry.Register("aider", &plugin.AiderLoader{ModelEndpoint: m.Model.Endpoint, ModelName: m.Model.Name})
+	log.Info().Str("plugins", "aider").Str("model_endpoint", m.Model.Endpoint).Msg("airtapd: plugin registry loaded")
 
 	// fix-bash-tool-egress-bypass: the bash tool isolates subprocesses in a
 	// CLONE_NEWNET netns (loopback-only) so raw-socket tools cannot dial off
@@ -107,19 +111,43 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	acceptLoop(ctx, ln, func(c net.Conn) {
+		defer c.Close()
+		handleConn(ctx, loop, c)
+	})
+}
+
+// acceptLoop accepts inbound mTLS connections until ctx is canceled, dispatching
+// each to handle. fix-airtapd-sigterm-blocked-in-accept (v0.5.0): the prior
+// for-loop blocked in ln.Accept and checked ctx.Err() only AFTER Accept
+// returned, so SIGTERM (systemctl stop) could not stop the daemon on a quiet
+// box — it hung until the next `airtap run` happened to dial in. A goroutine now
+// closes the listener on ctx.Done so Accept returns net.ErrClosed immediately
+// and the loop exits. sync.Once guards the close so the signal-driven close and
+// the caller's deferred ln.Close() do not race. The two earlier cancellation
+// fixes closed the thin-client scanner (fix-run-ctrl-c-blocked-scan) and tied the
+// on-box loop runCtx to conn lifetime (fix-daemon-loop-keeps-running-after-
+// client-disconnect); this closes the same blocking-on-a-read class one layer
+// out, at the daemon accept loop.
+func acceptLoop(ctx context.Context, ln net.Listener, handle func(net.Conn)) {
+	var closeOnce sync.Once
+	closeLn := func() { closeOnce.Do(func() { ln.Close() }) }
+	go func() {
+		<-ctx.Done()
+		closeLn()
+	}()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
+				// Signal-driven shutdown: the ctx.Done goroutine closed the
+				// listener, unblocking Accept. Drain is complete.
 				return
 			}
 			log.Error().Err(err).Msg("airtapd: accept")
 			continue
 		}
-		go func(c net.Conn) {
-			defer c.Close()
-			handleConn(ctx, loop, c)
-		}(conn)
+		go handle(conn)
 	}
 }
 

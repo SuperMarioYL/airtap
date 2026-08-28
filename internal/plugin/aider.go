@@ -9,6 +9,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -18,10 +19,23 @@ import (
 // isolation the built-in bash tool uses. ctx cancellation kills the subprocess
 // (fix-bash-tool-uncancelable-hang applied the same exec.CommandContext pattern
 // to the agent loop's tools).
-type AiderPlugin struct{}
+//
+// fix-aider-plugin-ignores-onbox-endpoint (v0.5.0): the plugin carries the
+// manifest's on-box model endpoint + name so aider targets 127.0.0.1 behind the
+// host egress proxy + netns moat instead of its default cloud endpoint (which
+// the moat blocks by design on a 数据不出境 box). v0.4 spawned aider with no
+// --model and no endpoint env, so the headline plugin could not complete a
+// single task on the exact surface the product targets.
+type AiderPlugin struct {
+	modelEndpoint string // manifest model.endpoint, e.g. http://127.0.0.1:8000/v1
+	modelName     string // manifest model.name, e.g. deepseek-v3
+}
 
-// NewAiderPlugin returns a ready Aider adapter.
-func NewAiderPlugin() *AiderPlugin { return &AiderPlugin{} }
+// NewAiderPlugin returns a ready Aider adapter bound to the on-box model
+// endpoint and name.
+func NewAiderPlugin(modelEndpoint, modelName string) *AiderPlugin {
+	return &AiderPlugin{modelEndpoint: modelEndpoint, modelName: modelName}
+}
 
 // Name is the plugin identifier the manifest resolves via agent.plugin.
 func (a *AiderPlugin) Name() string { return "aider" }
@@ -32,20 +46,16 @@ func (a *AiderPlugin) Name() string { return "aider" }
 // — aider drives its own workflow.
 func (a *AiderPlugin) Tools() []Tool { return nil }
 
-// Run spawns `aider --message <prompt>` as a netns-isolated subprocess. The
-// host's egress proxy (installed as http.DefaultTransport.DialContext) still
-// gates any Go-process HTTP; the netns closes the raw-socket gap for aider's
-// own subprocess dials. ctx cancellation sends SIGKILL to the subprocess.
+// Run spawns `aider --message <prompt>` as a netns-isolated subprocess pointed
+// at the on-box model endpoint. The host's egress proxy (installed as
+// http.DefaultTransport.DialContext) still gates any Go-process HTTP; the netns
+// closes the raw-socket gap for aider's own subprocess dials. ctx cancellation
+// sends SIGKILL to the subprocess.
 func (a *AiderPlugin) Run(ctx context.Context, prompt string, tools []Tool) error {
 	if _, err := exec.LookPath("aider"); err != nil {
 		return fmt.Errorf("aider: binary not found on the box (install aider: pip install aider-chat); %w", err)
 	}
-	cmd := exec.CommandContext(ctx, "aider",
-		"--message", prompt,
-		"--no-auto-commits",
-		"--yes-always",
-	)
-	applyNetnsToCmd(cmd) // build-tag-separated; CLONE_NEWNET on Linux, no-op elsewhere
+	cmd := buildAiderCmd(ctx, prompt, a.modelEndpoint, a.modelName)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("aider: %w: %s", err, string(out))
@@ -53,14 +63,48 @@ func (a *AiderPlugin) Run(ctx context.Context, prompt string, tools []Tool) erro
 	return nil
 }
 
-// AiderLoader resolves the "aider" plugin name to an AiderPlugin instance. The
-// host registers it at startup: `registry.Register("aider", &plugin.AiderLoader{})`.
-type AiderLoader struct{}
+// buildAiderCmd constructs the netns-isolated aider subprocess for a prompt,
+// bound to the on-box model endpoint + name. Factored out of Run so the
+// model-wiring regression can assert the cmd targets the on-box endpoint
+// without the aider binary installed (fix-aider-plugin-ignores-onbox-endpoint).
+//
+// Aider defaults to OpenAI's cloud endpoint; on a 数据不出境 box that dial is
+// exactly what the CLONE_NEWNET netns blocks, so we MUST point aider at the
+// on-box endpoint explicitly: OPENAI_API_BASE=<endpoint> (the OpenAI-compatible
+// base URL the vLLM-Ascend / MindIE shim serves) + a non-empty OPENAI_API_KEY
+// (aider refuses to run without one; the on-box shim ignores the value) + the
+// --model <name> flag.
+func buildAiderCmd(ctx context.Context, prompt, modelEndpoint, modelName string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "aider",
+		"--message", prompt,
+		"--no-auto-commits",
+		"--yes-always",
+		"--model", modelName,
+	)
+	// Inherit the parent env (PATH, etc.) and overlay the on-box endpoint so
+	// aider dials 127.0.0.1 behind the host egress proxy + netns moat.
+	cmd.Env = append(os.Environ(),
+		"OPENAI_API_BASE="+modelEndpoint,
+		"OPENAI_API_KEY=airtap-onbox",
+	)
+	applyNetnsToCmd(cmd) // build-tag-separated; CLONE_NEWNET on Linux, no-op elsewhere
+	return cmd
+}
 
-// Load returns an AiderPlugin when name == "aider"; otherwise ErrUnknownPlugin.
+// AiderLoader resolves the "aider" plugin name to an AiderPlugin instance. The
+// host registers it at startup with the manifest's model endpoint + name so the
+// adapter can wire aider to the on-box model:
+// `registry.Register("aider", &plugin.AiderLoader{ModelEndpoint: m.Model.Endpoint, ModelName: m.Model.Name})`.
+type AiderLoader struct {
+	ModelEndpoint string // manifest model.endpoint
+	ModelName     string // manifest model.name
+}
+
+// Load returns an AiderPlugin bound to the loader's on-box model endpoint when
+// name == "aider"; otherwise ErrUnknownPlugin.
 func (l *AiderLoader) Load(name string) (AgentPlugin, error) {
 	if name == "aider" {
-		return NewAiderPlugin(), nil
+		return NewAiderPlugin(l.ModelEndpoint, l.ModelName), nil
 	}
 	return nil, fmt.Errorf("%w: %s", ErrUnknownPlugin, name)
 }
