@@ -31,8 +31,8 @@
     },
     {
       "title": { "zh": "你走开，它就停；Aider 也能直接接进来", "en": "Walk away and it stops; Aider plugs right in" },
-      "body": { "zh": "笔记本一断开，盒上的 agent 循环立刻取消——你走后不会有僵尸进程空烧 GPU；命令失败，agent 读得到报错自己改，不用你盯着。现在 Aider 已经可以直插进这座盒子——出口隔离 + 审计 + 工具白名单照常生效，agent 的工作流交给 Aider，出口仍由盒子说了算。", "en": "The moment your laptop disconnects, the on-box loop cancels — no zombie process burns the GPU after you walk away; when a command fails, the agent reads the error and self-corrects. Aider now plugs straight into the box — the egress isolation + audit + tool allowlist still hold, Aider owns the agent workflow, the box still owns the egress." },
-      "chips": ["› 断开即停，不空烧 GPU", "› 命令失败，agent 读得到报错", "› Aider 已可接入，出口仍由盒子管"]
+      "body": { "zh": "笔记本一断开，盒上的 agent 循环立刻取消——你走后不会有僵尸进程空烧 GPU；命令失败，agent 读得到报错自己改，不用你盯着。现在 Aider 已经可以直插进这座盒子——出口隔离 + 审计 + 工具白名单照常生效，连 Aider 调的也是盒上的模型，不经任何云；agent 的工作流交给 Aider，出口仍由盒子说了算。", "en": "The moment your laptop disconnects, the on-box loop cancels — no zombie process burns the GPU after you walk away; when a command fails, the agent reads the error and self-corrects. Aider now plugs straight into the box — the egress isolation + audit + tool allowlist still hold, and even Aider's model calls stay on the box with no cloud in the path; Aider owns the agent workflow, the box still owns the egress." },
+      "chips": ["› 断开即停，不空烧 GPU", "› 命令失败，agent 读得到报错", "› Aider 已可接入，模型也在盒上", "› 出口仍由盒子管"]
     }
   ],
   "scene": { "kind": "hub-nodes", "nodes": ["笔记本", "mTLS 隧道", "信创 GPU 盒", "本地模型"] },
