@@ -169,7 +169,7 @@ Honest caveat: on "cloud-hosted, zero ops," Harness IDE / Reachpad are easier �
 
 **Next**
 
-- [ ] v0.2: agent-plugin spec (adapt Aider / Cline / Continue beyond the built-in minimal loop)
+- [x] agent-plugin spec (adapt Aider / Cline / Continue beyond the built-in minimal loop) — shipped: v0.3 spec · v0.4 Aider wrapper · v0.6 invokable
 - [ ] v0.3: multi-box / fleet scheduling (one manifest → one box becomes one-to-many)
 - [ ] Hash-chained `audit.log` (OEM tier, tamper-evident)
 - [ ] GPU / NPU autodiscovery (endpoint is hand-configured today)

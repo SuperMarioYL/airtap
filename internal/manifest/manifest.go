@@ -45,7 +45,7 @@ type Box struct {
 // leave the box.
 type Model struct {
 	Endpoint string `yaml:"endpoint"` // e.g. http://127.0.0.1:8000/v1
-	Name     string `yaml:"name"`      // e.g. deepseek-v3
+	Name     string `yaml:"name"`     // e.g. deepseek-v3
 }
 
 // Egress describes the outbound dial policy the daemon enforces. The
@@ -59,9 +59,10 @@ type Egress struct {
 
 // AgentCfg describes the agent runtime environment on the box.
 type AgentCfg struct {
-	Workdir      string   `yaml:"workdir"`       // repo root the agent edits
-	Tools        []string `yaml:"tools"`        // enabled tools: read,write,list,bash
+	Workdir       string   `yaml:"workdir"`        // repo root the agent edits
+	Tools         []string `yaml:"tools"`          // enabled tools: read,write,list,bash
 	MaxIterations int      `yaml:"max_iterations"` // v0.4.0: optional ReAct cap; 0 => default 25, ceiling 100
+	Plugin        string   `yaml:"plugin"`         // v0.6.0: optional external agent plugin name (e.g. aider); empty => built-in ReAct loop
 }
 
 // Manifest is the parsed, validated EgressManifest contract. It is the

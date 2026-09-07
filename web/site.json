@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "name": "airtap",
+  "meta": { "content_version": "v0.6.0" },
   "github": "https://github.com/SuperMarioYL/airtap",
   "host": "airtap.lei6393.com",
   "lang": { "primary": "zh", "toggle": true },

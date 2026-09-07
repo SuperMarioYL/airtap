@@ -169,7 +169,7 @@ airtap init --box 10.0.0.6:7437 --rotate
 
 **下一步**
 
-- [ ] v0.2：agent-plugin spec（适配 Aider / Cline / Continue，内置最小循环之外）
+- [x] agent-plugin spec（适配 Aider / Cline / Continue，内置最小循环之外）— 已交付：v0.3 spec · v0.4 Aider wrapper · v0.6 接入可用
 - [ ] v0.3：多盒 / fleet 调度（一份 manifest 对一盒 → 一对多）
 - [ ] hash-chained `audit.log`（OEM tier，防篡改）
 - [ ] GPU / NPU 自动发现（当前端点手填）

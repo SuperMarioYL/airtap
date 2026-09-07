@@ -6,39 +6,58 @@ import (
 	"testing"
 )
 
-// fix-aider-plugin-ignores-onbox-endpoint (v0.5.0): the Aider wrapper must
-// point aider at the on-box model endpoint (so it dials 127.0.0.1 behind the
-// egress proxy + netns moat) instead of aider's default cloud endpoint, which
-// the moat blocks by design on a 数据不出境 box. v0.4 spawned aider with no
-// --model and no endpoint env, so the headline plugin could not complete a
-// single task on the exact surface the product targets. This asserts the cmd
-// construction carries the wiring (aider binary not required).
+// fix-aider-plugin-ignores-onbox-endpoint (v0.5.0) + fix-aider-netns-
+// loopback-down-blocks-onbox-model (v0.6.0): the Aider wrapper must point
+// aider at the on-box model endpoint (so it dials 127.0.0.1 behind the
+// egress proxy + netns moat) instead of aider's default cloud endpoint,
+// AND it must bring the netns loopback UP so that dial actually reaches the
+// on-box model — a fresh CLONE_NEWNET netns leaves lo DOWN by kernel default,
+// so the v0.5.0 endpoint wiring never worked inside the moat. This asserts
+// the cmd construction carries both wirings (aider binary not required).
 func TestAiderCmdTargetsOnBoxEndpoint(t *testing.T) {
 	const endpoint = "http://127.0.0.1:8000/v1"
 	const name = "deepseek-v3"
-	cmd := buildAiderCmd(context.Background(), "fix server.go", endpoint, name)
+	const prompt = "fix server.go"
+	cmd := buildAiderCmd(context.Background(), prompt, endpoint, name)
 
-	// --model <name> must be on the argv.
-	gotModel := false
-	for i, a := range cmd.Args {
-		if a == "--model" && i+1 < len(cmd.Args) && cmd.Args[i+1] == name {
-			gotModel = true
-		}
+	// v0.6.0: the cmd runs via `sh -c <script>` so the script can bring the
+	// netns loopback up before exec-ing aider. The prompt + model name travel
+	// via env, so the static script must NOT inline user-controlled text.
+	if len(cmd.Args) < 3 || cmd.Args[0] != "sh" || cmd.Args[1] != "-c" {
+		t.Fatalf("expected sh -c <script>, got args %v", cmd.Args)
 	}
-	if !gotModel {
-		t.Fatalf("aider cmd argv should include --model %s; got %v", name, cmd.Args)
+	script := cmd.Args[2]
+	if !strings.Contains(script, "ip link set lo up") {
+		t.Fatalf("aider script should bring the netns loopback up (v0.6.0 fix); got %q", script)
+	}
+	if !strings.Contains(script, `--model "$AIRTAP_MODEL"`) {
+		t.Fatalf("aider script should pass the model via the $AIRTAP_MODEL env, got %q", script)
+	}
+	if !strings.Contains(script, `--message "$AIRTAP_PROMPT"`) {
+		t.Fatalf("aider script should pass the prompt via the $AIRTAP_PROMPT env (never inlined), got %q", script)
 	}
 
-	// Env must overlay the on-box OpenAI-compatible base URL.
-	gotBase := false
+	// Env must carry the on-box OpenAI-compatible base URL + the prompt/model
+	// values the script expands (no inline user-controlled text).
+	gotBase, gotPrompt, gotModel := false, false, false
 	for _, e := range cmd.Env {
-		if strings.HasPrefix(e, "OPENAI_API_BASE=") &&
-			strings.TrimPrefix(e, "OPENAI_API_BASE=") == endpoint {
+		switch {
+		case strings.HasPrefix(e, "OPENAI_API_BASE=") && strings.TrimPrefix(e, "OPENAI_API_BASE=") == endpoint:
 			gotBase = true
+		case strings.HasPrefix(e, "AIRTAP_PROMPT=") && strings.TrimPrefix(e, "AIRTAP_PROMPT=") == prompt:
+			gotPrompt = true
+		case strings.HasPrefix(e, "AIRTAP_MODEL=") && strings.TrimPrefix(e, "AIRTAP_MODEL=") == name:
+			gotModel = true
 		}
 	}
 	if !gotBase {
 		t.Fatalf("aider cmd env should set OPENAI_API_BASE=%s; got %v", endpoint, cmd.Env)
+	}
+	if !gotPrompt {
+		t.Fatalf("aider cmd env should set AIRTAP_PROMPT=%s; got %v", prompt, cmd.Env)
+	}
+	if !gotModel {
+		t.Fatalf("aider cmd env should set AIRTAP_MODEL=%s; got %v", name, cmd.Env)
 	}
 }
 

@@ -33,3 +33,5 @@ egress:
 agent:
   workdir: /opt/proj
   tools: [read, write, list, bash]
+  # max_iterations: 25      # optional ReAct cap; 0 => default 25, ceiling 100 (v0.4.0)
+  # plugin: aider            # optional external agent plugin; empty => built-in ReAct loop (v0.6.0)

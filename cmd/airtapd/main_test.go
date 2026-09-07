@@ -1,10 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/SuperMarioYL/airtap/internal/agent"
+	"github.com/SuperMarioYL/airtap/internal/plugin"
 )
 
 // fix-daemon-loop-keeps-running-after-client-disconnect: runCtx must be tied
@@ -93,5 +99,92 @@ func TestAcceptLoopExitsOnContextCancel(t *testing.T) {
 		// expected: ctx.Done closed ln -> Accept returned net.ErrClosed -> loop exited
 	case <-time.After(2 * time.Second):
 		t.Fatalf("acceptLoop did not exit within 2s of ctx cancel — SIGTERM still blocked in ln.Accept")
+	}
+}
+
+// fix-plugin-registry-never-consulted (v0.6.0): v0.4.0/v0.5.0 built the
+// registry and registered the Aider loader, but the run path never consulted
+// it (and AgentCfg had no plugin field, so agent.plugin was silently dropped).
+// handleConn must now dispatch the run to a declared plugin instead of the
+// built-in ReAct loop. Asserted over net.Pipe with a fake plugin — no TLS,
+// aider binary, or live model required.
+type fakePlugin struct {
+	gotPrompt string
+	done      chan struct{}
+}
+
+func (f *fakePlugin) Name() string         { return "fake" }
+func (f *fakePlugin) Tools() []plugin.Tool { return nil }
+func (f *fakePlugin) Run(ctx context.Context, prompt string, _ []plugin.Tool) error {
+	f.gotPrompt = prompt
+	close(f.done)
+	return nil
+}
+
+type fakeLoader struct{ p *fakePlugin }
+
+func (l *fakeLoader) Load(name string) (plugin.AgentPlugin, error) {
+	if name == "fake" {
+		return l.p, nil
+	}
+	return nil, fmt.Errorf("%w: %s", plugin.ErrUnknownPlugin, name)
+}
+
+func TestHandleConnDispatchesToPlugin(t *testing.T) {
+	fp := &fakePlugin{done: make(chan struct{})}
+	registry := plugin.NewRegistry()
+	registry.Register("fake", &fakeLoader{p: fp})
+
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+
+	// The plugin path never calls loop.Run, so a loop with a nil model client
+	// is the correct minimal stand-in (NewLoop(nil, nil, nil, nil) skips the
+	// egress install since the proxy is nil).
+	loop := agent.NewLoop(nil, nil, nil, nil)
+	go handleConn(context.Background(), loop, registry, "fake", c1)
+
+	// Client sends the prompt as the first line.
+	if _, err := c2.Write([]byte("fix server.go\n")); err != nil {
+		t.Fatalf("write prompt: %v", err)
+	}
+
+	select {
+	case <-fp.done:
+		// expected: handleConn resolved the plugin via the registry and called Run
+	case <-time.After(2 * time.Second):
+		t.Fatalf("plugin Run was not invoked within 2s — the registry is still dead code")
+	}
+	if fp.gotPrompt != "fix server.go" {
+		t.Fatalf("plugin received prompt %q; want %q", fp.gotPrompt, "fix server.go")
+	}
+}
+
+// An unknown plugin name must surface an error to the client rather than
+// silently fall back to the built-in loop (a silent fallback would mask a
+// misconfigured manifest).
+func TestHandleConnRejectsUnknownPlugin(t *testing.T) {
+	registry := plugin.NewRegistry() // nothing registered for "nope"
+
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+
+	loop := agent.NewLoop(nil, nil, nil, nil)
+	go handleConn(context.Background(), loop, registry, "nope", c1)
+
+	if _, err := c2.Write([]byte("anything\n")); err != nil {
+		t.Fatalf("write prompt: %v", err)
+	}
+
+	sc := bufio.NewScanner(c2)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	if !sc.Scan() {
+		t.Fatalf("expected an error line from handleConn, got EOF: %v", sc.Err())
+	}
+	line := sc.Text()
+	if !strings.Contains(line, "agent.plugin") || !strings.Contains(line, "nope") || !strings.Contains(line, "unknown") {
+		t.Fatalf("error line should mention the unknown plugin; got %q", line)
 	}
 }

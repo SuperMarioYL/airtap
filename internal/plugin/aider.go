@@ -65,25 +65,43 @@ func (a *AiderPlugin) Run(ctx context.Context, prompt string, tools []Tool) erro
 
 // buildAiderCmd constructs the netns-isolated aider subprocess for a prompt,
 // bound to the on-box model endpoint + name. Factored out of Run so the
-// model-wiring regression can assert the cmd targets the on-box endpoint
-// without the aider binary installed (fix-aider-plugin-ignores-onbox-endpoint).
+// model-wiring regression can assert the cmd targets the on-box endpoint +
+// brings the netns loopback up without the aider binary installed
+// (fix-aider-plugin-ignores-onbox-endpoint, fix-aider-netns-loopback-down-
+// blocks-onbox-model).
 //
 // Aider defaults to OpenAI's cloud endpoint; on a 数据不出境 box that dial is
 // exactly what the CLONE_NEWNET netns blocks, so we MUST point aider at the
 // on-box endpoint explicitly: OPENAI_API_BASE=<endpoint> (the OpenAI-compatible
 // base URL the vLLM-Ascend / MindIE shim serves) + a non-empty OPENAI_API_KEY
 // (aider refuses to run without one; the on-box shim ignores the value) + the
-// --model <name> flag.
+// --model <name> flag (fix-aider-plugin-ignores-onbox-endpoint, v0.5.0).
+//
+// fix-aider-netns-loopback-down-blocks-onbox-model (v0.6.0): the aider
+// subprocess runs in a fresh CLONE_NEWNET netns (applyNetnsToCmd below) whose
+// loopback is DOWN by kernel default, so aider's model dial to the on-box
+// 127.0.0.1:8000 endpoint (set via OPENAI_API_BASE in v0.5.0) failed with
+// ENETUNREACH — the v0.5.0 endpoint fix never actually worked inside the moat.
+// The script brings lo UP before exec-ing aider so the isolated subprocess can
+// reach the on-box model (loopback) while retaining no default route and no
+// non-loopback interface — the plan's intended loopback-only netns. The child
+// holds CAP_NET_ADMIN in the new netns (airtapd as root CAP_SYS_ADMIN, or
+// unprivileged userns granting a full cap set in the new ns), so
+// `ip link set lo up` succeeds on the 信创 surface (iproute2 on Kylin/UOS/
+// openEuler). The bash tool's netns is untouched and stays fully-disconnected.
+//
+// The prompt travels via the AIRTAP_PROMPT env var, NOT inline in the script,
+// so user-controlled prompt text is never shell-interpreted: the double-quoted
+// env expansion below is data, not re-evaluated as syntax (no prompt injection).
 func buildAiderCmd(ctx context.Context, prompt, modelEndpoint, modelName string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "aider",
-		"--message", prompt,
-		"--no-auto-commits",
-		"--yes-always",
-		"--model", modelName,
-	)
-	// Inherit the parent env (PATH, etc.) and overlay the on-box endpoint so
-	// aider dials 127.0.0.1 behind the host egress proxy + netns moat.
+	const script = `ip link set lo up 2>/dev/null || true
+exec aider --message "$AIRTAP_PROMPT" --no-auto-commits --yes-always --model "$AIRTAP_MODEL"`
+	cmd := exec.CommandContext(ctx, "sh", "-c", script)
+	// Inherit the parent env (PATH, etc.) and overlay the on-box endpoint +
+	// the prompt/model values the script expands (never inlined).
 	cmd.Env = append(os.Environ(),
+		"AIRTAP_PROMPT="+prompt,
+		"AIRTAP_MODEL="+modelName,
 		"OPENAI_API_BASE="+modelEndpoint,
 		"OPENAI_API_KEY=airtap-onbox",
 	)

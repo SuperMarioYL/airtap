@@ -87,6 +87,23 @@ func main() {
 	registry.Register("aider", &plugin.AiderLoader{ModelEndpoint: m.Model.Endpoint, ModelName: m.Model.Name})
 	log.Info().Str("plugins", "aider").Str("model_endpoint", m.Model.Endpoint).Msg("airtapd: plugin registry loaded")
 
+	// fix-plugin-registry-never-consulted (v0.6.0): v0.4.0/v0.5.0 built the
+	// registry and registered the Aider loader, but the run path never
+	// consulted it — acceptLoop -> handleConn always ran the built-in loop,
+	// and AgentCfg had no plugin field so manifest.agent.plugin was silently
+	// dropped by yaml unmarshal. Now the manifest declares agent.plugin;
+	// resolve it once at startup so an unknown name fails before the first
+	// `airtap run` (not mid-connection). An empty value keeps the built-in loop.
+	pluginName := m.Agent.Plugin
+	if pluginName != "" {
+		if _, err := registry.Load(pluginName); err != nil {
+			fail(fmt.Errorf("airtapd: agent.plugin %q: %w", pluginName, err))
+		}
+		log.Info().Str("plugin", pluginName).Msg("airtapd: plugin resolved — runs dispatch to the plugin instead of the built-in loop")
+	} else {
+		log.Info().Msg("airtapd: no agent.plugin declared — runs use the built-in ReAct loop")
+	}
+
 	// fix-bash-tool-egress-bypass: the bash tool isolates subprocesses in a
 	// CLONE_NEWNET netns (loopback-only) so raw-socket tools cannot dial off
 	// the box. Surface the CAP_SYS_ADMIN / unprivileged-userns requirement at
@@ -113,7 +130,7 @@ func main() {
 
 	acceptLoop(ctx, ln, func(c net.Conn) {
 		defer c.Close()
-		handleConn(ctx, loop, c)
+		handleConn(ctx, loop, registry, pluginName, c)
 	})
 }
 
@@ -151,11 +168,12 @@ func acceptLoop(ctx context.Context, ln net.Listener, handle func(net.Conn)) {
 	}
 }
 
-// handleConn reads the prompt (first line), points the loop's progress
-// stream at the connection, and runs the ReAct loop. Tool calls and the
-// final answer are written back over the conn as newline-terminated lines,
-// which the thin client's tui.Stream renders.
-func handleConn(ctx context.Context, loop *agent.Loop, conn net.Conn) {
+// handleConn reads the prompt (first line), then dispatches the run: if the
+// manifest declared an agent.plugin (fix-plugin-registry-never-consulted,
+// v0.6.0) the resolved plugin drives the agent workflow; otherwise the built-in
+// ReAct loop runs. Tool calls and the final answer are written back over the
+// conn as newline-terminated lines, which the thin client's tui.Stream renders.
+func handleConn(ctx context.Context, loop *agent.Loop, registry *plugin.Registry, pluginName string, conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	prompt, err := reader.ReadString('\n')
 	if err != nil {
@@ -174,20 +192,40 @@ func handleConn(ctx context.Context, loop *agent.Loop, conn net.Conn) {
 	loopMu.Lock()
 	defer loopMu.Unlock()
 
-	// Pipe loop progress over this connection to the thin-client TUI.
-	loop.SetOutput(conn)
-
-	// fix-daemon-loop-keeps-running-after-client-disconnect: runCtx was derived
-	// only from the daemon-wide signal context, so a client disconnect (Ctrl-C
-	// on `airtap run` closes the mTLS conn) left the on-box loop issuing model
-	// calls into a dead conn for up to MaxIterations (~40 min of wasted GPU
-	// time) and blocked a reconnecting operator behind loopMu. Tie runCtx to
-	// the conn lifetime: a goroutine drains the conn and calls cancel on the
-	// first read error/EOF, so a disconnect cancels runCtx and loop.Run aborts
-	// at the next iteration boundary (loop.go checks ctx.Err() each turn).
+	// fix-daemon-loop-keeps-running-after-client-disconnect: tie runCtx to the
+	// conn lifetime so a thin-client disconnect (Ctrl-C on `airtap run`)
+	// cancels the on-box run promptly instead of leaving it writing into a
+	// dead conn. Applies to BOTH paths: the plugin's subprocess is
+	// exec.CommandContext(runCtx) and the built-in loop checks ctx.Err() each
+	// turn. The drain goroutine reads from r (the prompt reader, whose buffer
+	// is empty after the prompt was consumed) so any buffered bytes drain too.
 	runCtx, cancel := connContext(ctx, reader)
 	defer cancel()
 
+	// fix-plugin-registry-never-consulted (v0.6.0): when the manifest declares
+	// an agent.plugin, dispatch the run to that plugin (resolved at startup)
+	// instead of the built-in ReAct loop. The host still owns the
+	// egress/audit/netns moat; the plugin owns the agent workflow. Aider (the
+	// only registered plugin) ignores the host tool set and runs its own
+	// workflow, so nil is the correct host-tool argument.
+	if pluginName != "" {
+		p, err := registry.Load(pluginName)
+		if err != nil {
+			fmt.Fprintf(conn, "airtap: error: agent.plugin %q: %v\n", pluginName, err)
+			log.Error().Err(err).Str("plugin", pluginName).Msg("airtapd: plugin resolve")
+			return
+		}
+		log.Info().Str("plugin", pluginName).Msg("airtapd: running plugin")
+		if err := p.Run(runCtx, prompt, nil); err != nil {
+			fmt.Fprintf(conn, "airtap: error: %v\n", err)
+			log.Error().Err(err).Msg("airtapd: plugin")
+		}
+		return
+	}
+
+	// Built-in ReAct loop. Pipe its progress over this connection to the
+	// thin-client TUI.
+	loop.SetOutput(conn)
 	if err := loop.Run(runCtx, prompt); err != nil {
 		fmt.Fprintf(conn, "airtap: error: %v\n", err)
 		log.Error().Err(err).Msg("airtapd: loop")
