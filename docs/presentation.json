@@ -1,0 +1,78 @@
+{
+  "name": "airtap",
+  "tagline": "Keep remote agent work on your own box.",
+  "architecture": {
+    "title": "How Airtap works",
+    "nodes": [
+      {
+        "title": "Thin client",
+        "detail": "cmd/airtap"
+      },
+      {
+        "title": "mTLS tunnel",
+        "detail": "internal/tunnel"
+      },
+      {
+        "title": "Agent loop",
+        "detail": "internal/agent"
+      },
+      {
+        "title": "Egress + audit",
+        "detail": "internal/egress; internal/audit"
+      }
+    ],
+    "edges": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  "process": {
+    "title": "From input to a useful result",
+    "steps": [
+      {
+        "title": "Load manifest",
+        "detail": "examples/airtap.yaml"
+      },
+      {
+        "title": "Validate fields",
+        "detail": "Model and tools accepted"
+      },
+      {
+        "title": "Check destinations",
+        "detail": "One allowed, one denied"
+      }
+    ],
+    "result": "The local model address is allowed; example.com:443 is not."
+  },
+  "integrations": {
+    "title": "Supported input and output routes",
+    "items": [
+      {
+        "title": "YAML",
+        "detail": "Model, tools and box settings"
+      },
+      {
+        "title": "mTLS",
+        "detail": "Client / daemon stream"
+      },
+      {
+        "title": "OpenAI-compatible HTTP",
+        "detail": "Configured model endpoint"
+      },
+      {
+        "title": "Audit log",
+        "detail": "Outbound dial decisions"
+      }
+    ]
+  }
+}

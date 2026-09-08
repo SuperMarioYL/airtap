@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source_revision": "7c33fdec3c8ad0c4151a29d3c07f87800cf96483",
+  "scope": "Offline manifest validation and allowlist membership; no daemon, model call, or network isolation is exercised.",
+  "steps": [
+    {
+      "label": "Recorded run",
+      "body": "Offline manifest validation and allowlist membership; no daemon, model call, or network isolation is exercised.",
+      "command": "go run ./examples/presentation-demo",
+      "output": "manifest: valid; model=deepseek-v3; tools=[read write list bash]\n127.0.0.1:8000 allowed=true\nexample.com:443 allowed=false"
+    }
+  ]
+}

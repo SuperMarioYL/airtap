@@ -1,46 +1,216 @@
 {
-  "schema": 1,
+  "schema": 3,
   "name": "airtap",
-  "meta": { "content_version": "v0.6.0" },
+  "meta": {
+    "visual_style": "neon-particle",
+    "demo_source": "docs/demo-results.json"
+  },
   "github": "https://github.com/SuperMarioYL/airtap",
   "host": "airtap.lei6393.com",
-  "lang": { "primary": "zh", "toggle": true },
-  "accent": ["#3fb950", "#1a7f37"],
+  "palette": "auto",
+  "lang": {
+    "primary": "en",
+    "toggle": true
+  },
   "hero": {
-    "eyebrow": { "zh": "本地 · 零出口 · 可审计 · 单文件", "en": "On-prem · Zero egress · Auditable · Single file" },
-    "headline": { "zh": "一条命令\n在内网 GPU 盒上跑编码 Agent", "en": "Run a coding agent\non your in-network GPU box" },
-    "sub": { "zh": "数据不出境的国企研发，第一次像用云端 runner 一样顺手——agent 的 shell 命令出不了这台盒子，每一次外发都留痕可审，你一断开它就停，连卡住的命令也一起停。", "en": "On-prem R&D that finally feels like a cloud runner — the agent's shell commands can't leave the box, every outbound call is logged and audit-ready, and the moment you disconnect it stops, stuck commands included." },
-    "command": "airtap run \"给 server.go 加 /health 接口\"",
-    "cta": { "zh": "查看 GitHub", "en": "See on GitHub" },
-    "ctaGithub": { "zh": "源码 / README", "en": "Source / README" }
+    "headline": {
+      "en": "Keep remote agent work on your own box.",
+      "zh": "让远程 Agent 在自己的计算节点上工作。"
+    },
+    "sub": {
+      "en": "Airtap connects a thin client to airtapd over mutual TLS. The daemon runs the model and tool loop against the work directory you configure.",
+      "zh": "Airtap 通过双向 TLS 连接客户端与 airtapd。守护进程按配置调用模型，并在指定工作目录执行工具循环。"
+    },
+    "href": "#quickstart"
   },
   "advantages": [
     {
-      "title": { "zh": "连 agent 的 shell 命令都出不了这台盒子", "en": "Even the agent's shell commands can't leave the box" },
-      "body": { "zh": "agent 跑的每一条 shell 命令，都在一个没有出口的隔离网络里执行——curl、wget、nc 都拨不出去；盒子若没法这样隔离，命令干脆不跑，绝不留后门。命令卡住了，断开就连它一起停，不会空烧 GPU。", "en": "Every shell command the agent runs executes inside an isolated network with no way out — curl, wget, nc can't dial off the box; if the box can't enforce that isolation, the command simply won't run. No back door left open. If a command hangs, disconnecting kills it too — no wasted GPU." },
-      "chips": ["› shell 命令隔离运行", "› 隔离失败即拒绝执行", "› 卡住的命令也能停"]
+      "title": {
+        "en": "One shared configuration",
+        "zh": "一份共享配置"
+      },
+      "body": {
+        "en": "Model, workdir, tools and egress are defined together.",
+        "zh": "模型、工作目录、工具和出口在同一处定义。"
+      }
     },
     {
-      "title": { "zh": "没有审计记录，就不放行任何外发", "en": "No audit record, no egress" },
-      "body": { "zh": "每一次放行与拒绝都写进审计日志；万一审计写不下去（磁盘满、日志损坏），那次拨号直接拒绝——你看到的「零出口」才经得起查。", "en": "Every allow and deny is written to the audit log; if a record can't be made (disk full, broken log), that dial is refused outright — so the \"zero egress\" you see can stand up to an audit." },
-      "chips": ["› 放行/拒绝都留痕", "› 审计写失败则不放行"]
+      "title": {
+        "en": "Authenticated connection",
+        "zh": "双向认证连接"
+      },
+      "body": {
+        "en": "The client and daemon communicate over mTLS.",
+        "zh": "客户端与守护进程通过 mTLS 通信。"
+      }
     },
     {
-      "title": { "zh": "你允许的工具和文件，才是它碰得到的", "en": "Only the tools and files you allow are in reach" },
-      "body": { "zh": "在 airtap.yaml 里写 tools:[read]，agent 就真的只能读——写、list、bash 一概不跑；文件工具也只能读写你仓库目录里的文件，系统文件碰不到。模型只调盒上的国产模型，不经任何云。你写的约束，就是执行的约束。", "en": "Write tools:[read] in airtap.yaml and the agent really can only read — write, list, bash stay off; the file tools can only read and write inside your repo directory, system files are out of reach. The model only ever calls the on-box domestic model, no cloud in the path. The constraint you write is the constraint that runs." },
-      "chips": ["› 写 read 就只能读", "› 文件碰不到仓库之外", "› 模型只在 127.0.0.1"]
-    },
-    {
-      "title": { "zh": "你走开，它就停；Aider 也能直接接进来", "en": "Walk away and it stops; Aider plugs right in" },
-      "body": { "zh": "笔记本一断开，盒上的 agent 循环立刻取消——你走后不会有僵尸进程空烧 GPU；命令失败，agent 读得到报错自己改，不用你盯着。现在 Aider 已经可以直插进这座盒子——出口隔离 + 审计 + 工具白名单照常生效，连 Aider 调的也是盒上的模型，不经任何云；agent 的工作流交给 Aider，出口仍由盒子说了算。", "en": "The moment your laptop disconnects, the on-box loop cancels — no zombie process burns the GPU after you walk away; when a command fails, the agent reads the error and self-corrects. Aider now plugs straight into the box — the egress isolation + audit + tool allowlist still hold, and even Aider's model calls stay on the box with no cloud in the path; Aider owns the agent workflow, the box still owns the egress." },
-      "chips": ["› 断开即停，不空烧 GPU", "› 命令失败，agent 读得到报错", "› Aider 已可接入，模型也在盒上", "› 出口仍由盒子管"]
+      "title": {
+        "en": "Inspect egress decisions",
+        "zh": "检查出口决策"
+      },
+      "body": {
+        "en": "The configured dialer records allowed and denied attempts.",
+        "zh": "已配置拨号器记录允许和拒绝的尝试。"
+      }
     }
   ],
-  "scene": { "kind": "hub-nodes", "nodes": ["笔记本", "mTLS 隧道", "信创 GPU 盒", "本地模型"] },
-  "cta": {
-    "headline": { "zh": "在内网 GPU 盒上开始", "en": "Start on your in-network GPU box" },
-    "sub": { "zh": "一条命令上手，零云上出口。", "en": "One command. Zero cloud egress." },
-    "button": { "zh": "查看 GitHub", "en": "See on GitHub" }
+  "demo": {
+    "title": {
+      "en": "Run it on a complete example",
+      "zh": "运行完整示例"
+    },
+    "note": {
+      "en": "The included example validates examples/airtap.yaml and compares a local model address with an unlisted address without dialing either.",
+      "zh": "随仓示例校验 examples/airtap.yaml，并比较本地模型地址与未列出的地址，不实际拨号。"
+    },
+    "source": "https://github.com/SuperMarioYL/airtap/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": "Recorded run",
+        "body": "Offline manifest validation and allowlist membership; no daemon, model call, or network isolation is exercised.",
+        "command": "go run ./examples/presentation-demo",
+        "output": "manifest: valid; model=deepseek-v3; tools=[read write list bash]\n127.0.0.1:8000 allowed=true\nexample.com:443 allowed=false",
+        "image": "/assets/presentation/demo-0-light.svg",
+        "imageDark": "/assets/presentation/demo-0-dark.svg"
+      }
+    ]
   },
-  "footer": { "tag": { "zh": "MIT · SuperMarioYL", "en": "MIT · SuperMarioYL" } }
+  "quickstart": {
+    "title": {
+      "en": "Try it locally",
+      "zh": "本地上手"
+    },
+    "body": {
+      "en": "The included example validates examples/airtap.yaml and compares a local model address with an unlisted address without dialing either.",
+      "zh": "随仓示例校验 examples/airtap.yaml，并比较本地模型地址与未列出的地址，不实际拨号。"
+    },
+    "steps": [
+      {
+        "title": {
+          "en": "Install from source",
+          "zh": "从源码安装"
+        },
+        "code": "git clone https://github.com/SuperMarioYL/airtap.git\ncd airtap\ngo build ./cmd/airtap\ngo build ./cmd/airtapd"
+      },
+      {
+        "title": {
+          "en": "Run the included example",
+          "zh": "运行随仓示例"
+        },
+        "code": "go run ./examples/presentation-demo"
+      }
+    ]
+  },
+  "limitations": [
+    {
+      "en": "The offline demo checks configuration and policy membership only. It does not start a daemon, call a model, or validate Linux isolation.",
+      "zh": "离线示例只检查配置和策略匹配，不启动守护进程、不调用模型，也不验证 Linux 隔离。"
+    },
+    {
+      "en": "Bash execution requires Linux network namespace support and suitable privileges; it fails closed when isolation cannot be created.",
+      "zh": "Bash 执行需要 Linux 网络命名空间及相应权限；无法创建隔离时会拒绝执行。"
+    },
+    {
+      "en": "The dialer governs traffic routed through it; this is not a compliance certification or a firewall for unrelated processes.",
+      "zh": "拨号器管理经过它的流量，不构成合规认证，也不是无关进程的系统防火墙。"
+    }
+  ],
+  "scene": {
+    "kind": "neon-graph",
+    "fallback": "/assets/presentation/scene-dark.svg",
+    "fallbackLight": "/assets/presentation/scene-light.svg"
+  },
+  "story": {
+    "intro": {
+      "title": {
+        "en": "A concrete task",
+        "zh": "从实际任务出发"
+      },
+      "body": {
+        "en": "A remote development box needs a clear contract for its model endpoint, permitted tools and outbound destinations. A shared YAML manifest keeps these settings together and makes egress decisions inspectable.",
+        "zh": "远程开发节点需要明确模型端点、工具集合和允许访问的地址。一份共享 YAML 把这些设置集中起来，出口决策也能从日志检查。"
+      }
+    },
+    "sections": [
+      {
+        "title": {
+          "en": "Follow the operation",
+          "zh": "处理过程"
+        },
+        "body": {
+          "en": "The client loads the manifest and opens the mTLS tunnel. airtapd dispatches the configured tools and sends model requests through the egress dialer. The dialer checks host:port membership and records allowed and denied attempts. Bash isolation uses Linux network namespaces.",
+          "zh": "客户端读取配置并建立 mTLS 隧道；airtapd 分发已配置工具，模型请求经过出口拨号器。拨号器按 host:port 检查允许列表，记录允许和拒绝的尝试。Bash 隔离依赖 Linux 网络命名空间。"
+        },
+        "image": {
+          "light": "/assets/presentation/process-light.svg",
+          "dark": "/assets/presentation/process-dark.svg",
+          "alt": {
+            "en": "Follow the operation",
+            "zh": "处理过程"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "How Airtap works",
+          "zh": "Airtap 的工作方式"
+        },
+        "body": {
+          "en": "The client loads the manifest and opens the mTLS tunnel. airtapd dispatches the configured tools and sends model requests through the egress dialer. The dialer checks host:port membership and records allowed and denied attempts. Bash isolation uses Linux network namespaces.",
+          "zh": "客户端读取配置并建立 mTLS 隧道；airtapd 分发已配置工具，模型请求经过出口拨号器。拨号器按 host:port 检查允许列表，记录允许和拒绝的尝试。Bash 隔离依赖 Linux 网络命名空间。"
+        },
+        "image": {
+          "light": "/assets/presentation/architecture-light.svg",
+          "dark": "/assets/presentation/architecture-dark.svg",
+          "alt": {
+            "en": "How Airtap works",
+            "zh": "Airtap 的工作方式"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "Connect the pieces",
+          "zh": "输入与输出"
+        },
+        "body": {
+          "en": "The following routes are implemented in the source. Choose the input that matches your task and keep the resulting artifact with your project.",
+          "zh": "以下路径已有源码实现。按任务选择输入，并把生成的结果与项目一起保存。"
+        },
+        "image": {
+          "light": "/assets/presentation/integrations-light.svg",
+          "dark": "/assets/presentation/integrations-dark.svg",
+          "alt": {
+            "en": "Connect the pieces",
+            "zh": "输入与输出"
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "en": "Configuration",
+          "zh": "配置"
+        },
+        "body": {
+          "en": "Create the output directory before init. Distribute the manifest and TLS material to the two endpoints, protect ca.key, and set box.addr, model.endpoint, egress.allow and agent.workdir for the actual deployment. agent.max_iterations accepts 0 for the default limit.",
+          "zh": "init 前先创建输出目录。将配置和 TLS 材料部署到两端，妥善保护 ca.key，并根据环境设置 box.addr、model.endpoint、egress.allow 和 agent.workdir。agent.max_iterations 为 0 时采用默认上限。"
+        }
+      },
+      {
+        "title": {
+          "en": "Further use",
+          "zh": "进一步使用"
+        },
+        "body": {
+          "en": "The CLI exposes the following operations. Commands after the example use your own paths or identifiers.",
+          "zh": "CLI 提供以下操作。示例之外的命令需要替换成你的文件路径或标识。"
+        },
+        "code": "mkdir -p local-config\ngo run ./cmd/airtap init --out ./local-config\ngo run ./cmd/airtap run --manifest ./airtap.yaml \"Inspect this repository\"\ngo run ./cmd/airtap audit --file ./audit.log"
+      }
+    ]
+  },
+  "content_version": "v0.6.0"
 }

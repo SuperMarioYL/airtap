@@ -1,0 +1,38 @@
+{
+  "mode": "auto",
+  "id": "8de656-6ae77d-e3f6ac-dd667a06127f",
+  "identity": "https://github.com/supermarioyl/airtap",
+  "primary": "#8de656",
+  "secondary": "#6ae77d",
+  "highlight": "#e3f6ac",
+  "dark": {
+    "bg": "#070c0d",
+    "panel": "#0f1717",
+    "code": "#0e1713",
+    "ink": "#f9fdee",
+    "muted": "#a0b9a8",
+    "line": "#243c1d",
+    "primary": "#8de656",
+    "secondary": "#6ae77d",
+    "highlight": "#e3f6ac",
+    "accent": "#8de656",
+    "buttonStart": "#518331",
+    "buttonEnd": "#3d8548",
+    "buttonText": "#ffffff"
+  },
+  "light": {
+    "bg": "#fbfef9",
+    "panel": "#f9fef7",
+    "code": "#f7fdf3",
+    "ink": "#1b2a1c",
+    "muted": "#607a6b",
+    "line": "#dcf7cb",
+    "primary": "#4f8030",
+    "secondary": "#3c8247",
+    "highlight": "#6f7854",
+    "accent": "#4f8030",
+    "buttonStart": "#518331",
+    "buttonEnd": "#3d8548",
+    "buttonText": "#ffffff"
+  }
+}
