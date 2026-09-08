@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source_revision": "7c33fdec3c8ad0c4151a29d3c07f87800cf96483",
+  "source_revision": "f71332dc730e3b6a933df6fd6ff9132b3253be77",
   "scope": "Offline manifest validation and allowlist membership; no daemon, model call, or network isolation is exercised.",
   "steps": [
     {
