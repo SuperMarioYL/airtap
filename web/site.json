@@ -3,7 +3,8 @@
   "name": "airtap",
   "meta": {
     "visual_style": "neon-particle",
-    "demo_source": "docs/demo-results.json"
+    "demo_source": "docs/demo-results.json",
+    "content_version": "v0.6.0"
   },
   "github": "https://github.com/SuperMarioYL/airtap",
   "host": "airtap.lei6393.com",
