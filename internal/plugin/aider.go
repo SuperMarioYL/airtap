@@ -9,6 +9,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -26,15 +27,31 @@ import (
 // the moat blocks by design on a 数据不出境 box). v0.4 spawned aider with no
 // --model and no endpoint env, so the headline plugin could not complete a
 // single task on the exact surface the product targets.
+//
+// fix-plugin-run-output-discarded (v0.7.0): the plugin carries an output sink
+// (SetOutput, mirroring agent.Loop.SetOutput) that the daemon sets to the mTLS
+// connection so aider's progress streams to the thin client. v0.6.0 and before
+// captured CombinedOutput and DISCARDED it on success — a plugin run rendered a
+// completely blank terminal: no progress, no edit summary, nothing.
 type AiderPlugin struct {
-	modelEndpoint string // manifest model.endpoint, e.g. http://127.0.0.1:8000/v1
-	modelName     string // manifest model.name, e.g. deepseek-v3
+	modelEndpoint string    // manifest model.endpoint, e.g. http://127.0.0.1:8000/v1
+	modelName     string    // manifest model.name, e.g. deepseek-v3
+	out           io.Writer // streamed to the thin client; nil => io.Discard
 }
 
 // NewAiderPlugin returns a ready Aider adapter bound to the on-box model
 // endpoint and name.
 func NewAiderPlugin(modelEndpoint, modelName string) *AiderPlugin {
 	return &AiderPlugin{modelEndpoint: modelEndpoint, modelName: modelName}
+}
+
+// SetOutput redirects the subprocess's combined stdout/stderr to w. The daemon
+// calls it with the connection writer before Run so the external agent's
+// progress streams to the laptop, exactly like the built-in loop's sink.
+func (a *AiderPlugin) SetOutput(w io.Writer) {
+	if w != nil {
+		a.out = w
+	}
 }
 
 // Name is the plugin identifier the manifest resolves via agent.plugin.
@@ -51,14 +68,24 @@ func (a *AiderPlugin) Tools() []Tool { return nil }
 // http.DefaultTransport.DialContext) still gates any Go-process HTTP; the netns
 // closes the raw-socket gap for aider's own subprocess dials. ctx cancellation
 // sends SIGKILL to the subprocess.
+//
+// fix-plugin-run-output-discarded (v0.7.0): the subprocess's stdout/stderr
+// stream live to the output sink (SetOutput) instead of being captured by
+// CombinedOutput and discarded on success — the daemon pipes the sink to the
+// mTLS connection, so the thin client sees aider's progress as it prints.
 func (a *AiderPlugin) Run(ctx context.Context, prompt string, tools []Tool) error {
 	if _, err := exec.LookPath("aider"); err != nil {
 		return fmt.Errorf("aider: binary not found on the box (install aider: pip install aider-chat); %w", err)
 	}
 	cmd := buildAiderCmd(ctx, prompt, a.modelEndpoint, a.modelName)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("aider: %w: %s", err, string(out))
+	sink := a.out
+	if sink == nil {
+		sink = io.Discard
+	}
+	cmd.Stdout = sink
+	cmd.Stderr = sink
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("aider: %w", err)
 	}
 	return nil
 }

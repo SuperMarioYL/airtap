@@ -33,8 +33,8 @@ type Message struct {
 
 // ToolCall is a single tool invocation emitted by the assistant.
 type ToolCall struct {
-	ID       string `json:"id"`
-	Type     string `json:"type"` // always "function"
+	ID       string   `json:"id"`
+	Type     string   `json:"type"` // always "function"
 	Function Function `json:"function"`
 }
 

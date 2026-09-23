@@ -215,6 +215,14 @@ func handleConn(ctx context.Context, loop *agent.Loop, registry *plugin.Registry
 			log.Error().Err(err).Str("plugin", pluginName).Msg("airtapd: plugin resolve")
 			return
 		}
+		// fix-plugin-run-output-discarded (v0.7.0): hand the plugin the conn as
+		// its output sink, mirroring loop.SetOutput(conn) below, so the external
+		// agent's progress streams to the thin client. v0.6.0 discarded the
+		// subprocess's CombinedOutput on success — a plugin run rendered a blank
+		// terminal. Plugins without the sink keep the silent-but-working contract.
+		if s, ok := p.(interface{ SetOutput(io.Writer) }); ok {
+			s.SetOutput(conn)
+		}
 		log.Info().Str("plugin", pluginName).Msg("airtapd: running plugin")
 		if err := p.Run(runCtx, prompt, nil); err != nil {
 			fmt.Fprintf(conn, "airtap: error: %v\n", err)
