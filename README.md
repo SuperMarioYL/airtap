@@ -13,7 +13,7 @@
 
 Airtap 通过双向 TLS 连接客户端与 airtapd。守护进程按配置调用模型，并在指定工作目录执行工具循环。
 
-v0.6.0 已将插件注册表接入守护进程，并修复 Aider 网络命名空间中的 loopback 配置。Aider 运行仍需要相应环境和依赖；下面的初始化示例不启动 Agent。
+v0.7.0 将运行上下文接入模型请求（断开即停，包括进行中的模型调用）、把外部 Agent（Aider）的运行输出流回客户端，并修复发布流水线使预编译二进制随每个版本发布。Aider 运行仍需要相应环境和依赖；下面的初始化示例不启动 Agent。
 
 ## 为什么需要它
 
@@ -50,6 +50,12 @@ git clone https://github.com/SuperMarioYL/airtap.git
 cd airtap
 go build ./cmd/airtap
 go build ./cmd/airtapd
+```
+
+没有 Go 工具链时，可用预编译二进制（v0.7.0 起，linux/darwin × amd64/arm64，压缩包内含 `airtap` 与 `airtapd`）：
+
+```bash
+curl -L https://github.com/SuperMarioYL/airtap/releases/latest/download/airtap_linux_amd64.tar.gz | tar xz
 ```
 
 随仓示例校验 examples/airtap.yaml，并比较本地模型地址与未列出的地址，不实际拨号。

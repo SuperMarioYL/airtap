@@ -13,7 +13,7 @@
 
 Airtap connects a thin client to airtapd over mutual TLS. The daemon runs the model and tool loop against the work directory you configure.
 
-v0.6.0 wires the plugin registry into the daemon and fixes loopback setup in the Aider network namespace. Running Aider still requires its environment and dependencies; the initialization example below does not launch an agent.
+v0.7.0 threads the run context into the model request (a disconnect stops even an in-flight model call), streams external-agent (Aider) run output back to the client, and fixes the release pipeline so prebuilt binaries ship with every version. Running Aider still requires its environment and dependencies; the initialization example below does not launch an agent.
 
 ## Why use it
 
@@ -50,6 +50,12 @@ git clone https://github.com/SuperMarioYL/airtap.git
 cd airtap
 go build ./cmd/airtap
 go build ./cmd/airtapd
+```
+
+Without a Go toolchain, use the prebuilt binaries (v0.7.0 and later; linux/darwin × amd64/arm64; the archive contains both `airtap` and `airtapd`):
+
+```bash
+curl -L https://github.com/SuperMarioYL/airtap/releases/latest/download/airtap_linux_amd64.tar.gz | tar xz
 ```
 
 The included example validates examples/airtap.yaml and compares a local model address with an unlisted address without dialing either.
