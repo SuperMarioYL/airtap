@@ -7,6 +7,7 @@ package model
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -118,7 +119,14 @@ type chatError struct {
 // Chat sends a chat-completions request with the given message history
 // and tool declarations, returning the assistant's response (which may
 // contain content, tool_calls, or both).
-func (c *Client) Chat(messages []Message, tools []Tool) (*ChatResponse, error) {
+//
+// fix-model-call-ignores-run-context (v0.7.0): the request is bound to ctx
+// via http.NewRequestWithContext, so canceling the run context (thin-client
+// disconnect / SIGTERM in airtapd) aborts an IN-FLIGHT model call instead of
+// leaving the on-box GPU generating for up to HTTPTimeout after the caller
+// went away. The egress proxy's DialContext (wired in v0.2.0) receives this
+// same request context, so the cancellation also reaches an in-flight dial.
+func (c *Client) Chat(ctx context.Context, messages []Message, tools []Tool) (*ChatResponse, error) {
 	body := chatRequest{
 		Model:    c.modelName,
 		Messages: messages,
@@ -129,7 +137,7 @@ func (c *Client) Chat(messages []Message, tools []Tool) (*ChatResponse, error) {
 		return nil, fmt.Errorf("model: marshal request: %w", err)
 	}
 	url := c.endpoint + "/chat/completions"
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(buf))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(buf))
 	if err != nil {
 		return nil, fmt.Errorf("model: build request: %w", err)
 	}

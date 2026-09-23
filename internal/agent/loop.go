@@ -29,9 +29,11 @@ const MaxIterationsCeiling = 100
 // chatClient is the model surface the loop depends on. *model.Client satisfies
 // it; the interface lets tests drive Run with a fake that returns canned tool
 // calls (fix-bash-tool-output-discarded-on-error regression coverage) without a
-// live on-box model endpoint.
+// live on-box endpoint. Chat carries the run context so canceling the run
+// (thin-client disconnect / SIGTERM) aborts an in-flight model call, not just
+// the gap between turns (fix-model-call-ignores-run-context).
 type chatClient interface {
-	Chat(messages []model.Message, tools []model.Tool) (*model.ChatResponse, error)
+	Chat(ctx context.Context, messages []model.Message, tools []model.Tool) (*model.ChatResponse, error)
 }
 
 // Loop is the on-box ReAct agent loop. It binds a manifest, a model client, the
@@ -166,7 +168,10 @@ func (l *Loop) Run(ctx context.Context, prompt string) error {
 		}
 
 		l.stream("airtap: model call %d", i)
-		resp, err := l.client.Chat(msgs, tools)
+		// fix-model-call-ignores-run-context: thread ctx into the model call so
+		// cancellation (client disconnect / SIGTERM) aborts an in-flight HTTP
+		// request instead of waiting for the endpoint to answer.
+		resp, err := l.client.Chat(ctx, msgs, tools)
 		if err != nil {
 			l.stream("airtap: model error: %v", err)
 			return fmt.Errorf("agent: model chat: %w", err)

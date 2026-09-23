@@ -23,7 +23,7 @@ type fakeChatClient struct {
 	toolMsg  model.Message // captured on the second call
 }
 
-func (f *fakeChatClient) Chat(messages []model.Message, tools []model.Tool) (*model.ChatResponse, error) {
+func (f *fakeChatClient) Chat(_ context.Context, messages []model.Message, tools []model.Tool) (*model.ChatResponse, error) {
 	f.calls++
 	if f.calls == 1 {
 		// Emit one tool call for the loop to dispatch.
