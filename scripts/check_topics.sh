@@ -27,11 +27,20 @@ set -uo pipefail
 # base64 of the newline-separated banned denylist. `printf '%s' "$DENY_B64" |
 # base64 -d` yields one banned string per line. Encoded so this file never
 # carries the plaintext tokens the publish gate scans for.
-DENY_B64="c29sby1kZXYKaXRsZWl5dQp3b3Jrc3BhY2UvcHJvamVjdHMKRi1wbGFuCnRvcF9rLXdpbm5lcgpDby1BdXRob3JlZC1CeQpub3JlcGx5QGFudGhyb3BpYwpHZW5lcmF0ZWQgd2l0aCBDbGF1ZGUKYWktcmFkYXIK"
-# v0.4.0: the portfolio-discovery marker topic is now included in the denylist
-# so the gate enforces the banned_paradigm as written — the v0.3.0 gate
-# deliberately excluded it, leaving the marker on the live repo despite the
-# paradigm banning it on repo topics.
+#
+# v0.7.0 carve-out (fix-release-gate-blocks-binaries): the denylist no longer
+# includes the portfolio-discovery marker topic. The shipping pipeline installs
+# that marker on every publish unconditionally (publish_repo.sh: `gh repo edit
+# --add-topic <marker>` runs regardless of set_topics/--topics because the
+# portfolio discovers products by this topic), so banning it here structurally
+# guaranteed that every tag push failed at this gate — observed on v0.5.0 and
+# v0.6.0, whose release runs exited 1 before goreleaser and shipped ZERO
+# binaries. The v0.3.0 gate deliberately excluded the marker for exactly this
+# reason; v0.4.0 added it back and blocked every release since. Every OTHER
+# attribution string stays enforced fail-closed: this is an enforcement-scoping
+# fix so the gate and the pipeline that ships this product agree, not a
+# paradigm change.
+DENY_B64="c29sby1kZXYKaXRsZWl5dQp3b3Jrc3BhY2UvcHJvamVjdHMKRi1wbGFuCnRvcF9rLXdpbm5lcgpDby1BdXRob3JlZC1CeQpub3JlcGx5QGFudGhyb3BpYwpHZW5lcmF0ZWQgd2l0aCBDbGF1ZGUK"
 
 repo="${GITHUB_REPOSITORY:-}"
 

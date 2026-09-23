@@ -50,8 +50,13 @@ archives:
   - id: default
     formats:
       - tar.gz
+    # fix-release-gate-blocks-binaries (v0.7.0): the archive name is
+    # deliberately VERSIONLESS so the README quickstart one-liner
+    # `releases/latest/download/airtap_<os>_<arch>.tar.gz` stays stable
+    # across releases (the versioned name made the curl URL 404 on every
+    # new tag; the version lives in the tag + checksums.txt).
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}
     builds:
       - airtap
       - airtapd
